@@ -1,0 +1,37 @@
+{
+  "name": "@repo/agentic-handlers",
+  "version": "1.0.0",
+  "description": "The agentic handlers for the application",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx watch src/index.ts",
+    "start": ""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^24.6.2",
+    "typescript": "5.9.2"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.57.0",
+    "@arizeai/openinference-semantic-conventions": "^2.1.2",
+    "@modelcontextprotocol/sdk": "^1.18.2",
+    "@opentelemetry/api": "^1.9.0",
+    "arvo-core": "^3.0.6",
+    "arvo-event-handler": "^3.0.6",
+    "openai": "^5.22.0",
+    "xstate": "^5.20.1",
+    "zod": "^3.25.67",
+    "zod-to-json-schema": "^3.24.5"
+  }
+}
