@@ -118,6 +118,7 @@ export const parseAgentFromMessage = (message: string): ParsedMessage => {
           the user and suggest they direct their question to that specific agent using the 
           @agentname mention format.
 
+          
           Important: Always prefer using available agent tools when possible, as this provides\
           a seamless experience without requiring the user to restate their question.
         </agent_delegation_policy>
