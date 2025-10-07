@@ -129,6 +129,12 @@ export const anthropicLLMCaller: LLMIntergration = async ({
   if (message.stop_reason === 'end_turn') {
     finalResponse = message.content[0]?.type === 'text' ? message.content[0].text : 'No final response';
   }
+  if (message.stop_reason === 'max_tokens') {
+    finalResponse =
+      message.content[0]?.type === 'text'
+        ? `${message.content[0].text}\n\n[Response truncated: Maximum token limit reached]`
+        : '[Response truncated: Maximum token limit reached]';
+  }
 
   // Structure response according to Arvo's agentic LLM output format
   const data: LLMIntegrationOutput = {

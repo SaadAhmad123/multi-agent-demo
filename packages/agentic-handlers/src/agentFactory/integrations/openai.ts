@@ -216,6 +216,9 @@ export const openaiLLMCaller: LLMIntergration = async ({
   if (message?.choices?.[0]?.finish_reason === 'stop') {
     finalResponse = message.choices[0].message.content;
   }
+  if (message?.choices?.[0]?.finish_reason === 'length') {
+    finalResponse = `${message.choices[0].message.content}\n\n[Response truncated: Maximum token limit reached]`;
+  }
 
   // Structure response according to Arvo's agentic LLM output format
   const data: LLMIntegrationOutput = {
