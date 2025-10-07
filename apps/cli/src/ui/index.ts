@@ -1,4 +1,11 @@
 import chalk from 'chalk';
+import { marked } from 'marked';
+import { markedTerminal } from 'marked-terminal';
+
+marked.use(
+  // biome-ignore lint/suspicious/noExplicitAny: This needs to be 'any'
+  markedTerminal() as any,
+);
 
 /**
  * Displays a formatted welcome banner when the application starts
@@ -55,9 +62,12 @@ export const displaySystemMessage = (message: string, type: 'error' | 'info' | '
  */
 export const displayAgentResponse = (agentName: string, response: string) => {
   console.log(chalk.green(`@${agentName}:`));
-  const lines = response.split('\n');
+
+  const renderedMarkdown = marked(response) as string;
+
+  const lines = renderedMarkdown.split('\n');
   for (const line of lines) {
-    console.log(chalk.white(`  ${line}`));
+    console.log(`  ${line}`);
   }
   console.log('');
 };

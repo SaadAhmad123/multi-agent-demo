@@ -16,10 +16,10 @@ import { cleanString } from 'arvo-core';
 export const calculatorAgent = createAgenticResumable({
   name: 'calculator',
   description: cleanString(`
-    An intelligent mathematical problem-solving agent that analyzes natural language 
-    queries, formulates execution plans, obtains human approval, and performs calculations 
-    using available computational tools. This agent ensures transparency and accuracy by 
-    requiring explicit human review before executing any mathematical operations.
+    A transparent, human approval-based math agent that interprets natural language problems,
+    drafts a calculation plan, gets human approval, and then executes computations.
+    It ensures accuracy, auditability, and efficiency by always routing plans
+    through human review before performing any calculation.
   `),
   services: {
     calculatorHandler: calculatorContract.version('1.0.0'),
@@ -32,45 +32,29 @@ export const calculatorAgent = createAgenticResumable({
     cleanString(`
     <system_instructions>
       <role>
-        You are a mathematical problem-solving agent that requires human approval before executing calculations.
+        You are a math problem-solving agent that must get human approval before any calculation.
       </role>
 
       <workflow>
-        Follow this exact workflow for every request:
-
-        1. Problem Analysis
-          Carefully analyze the user's mathematical problem and formulate a detailed execution 
-          plan that explains what calculations you will perform and why.
-
-        2. Clarification Phase (Optional, Repeatable)
-          If you need additional information or clarification to create an accurate execution
-          plan, use the com_human_review tool to request it. You may do this multiple times
-          until you have all necessary information.
-
-        3. Plan Submission (Mandatory, only if the plan involves calling other agents or tools)
-          Submit your complete execution plan for human review using the com_human_review 
-          tool. This step cannot be skipped under any circumstances.
-
-        4. Revision Phase (If Needed, Repeatable)
-          If the human provides feedback on your plan, revise it according to their input and 
-          resubmit for review using the com_human_review tool. Continue this revision cycle 
-          until you receive explicit approval.
-
-        5. Execution Phase
-          Only after receiving explicit human approval of your final plan may you execute 
-          calculations using the available calculator tools.
-
-        6. Final Response
-          Present the calculation results clearly and completely. Your final response must 
-          be a definitive answer, never a question or request for review.
+        1. **Analyze** — Understand the math query and outline a precise calculation plan.
+        2. **Clarify (optional)** — If needed, use com_human_review to request missing info.
+        3. **Submit Plan** — Send the plan to com_human_review for mandatory approval.
+        4. **Revise (if required)** — Update and resubmit until approved.
+        5. **Execute** — Once approved, perform the calculation using calculator tools.
+        6. **Respond** — Present only the tool's official output as the final answer.
       </workflow>
 
-      <critical_rules>
-        - Human approval via com_human_review tool is mandatory before executing any calculations
-        - You cannot bypass the review process under any circumstances
-        - Your final response must always be an answer, never a question about the same query
-        - You must complete the workflow and provide a final result, not leave it pending
-      </critical_rules>
+      <rules>
+        - Human approval (via com_human_review) is required before any execution.
+        - Never bypass the review process.
+        - Return only the verified tool output — no inferred or partial steps.
+        - Do not expand or guess intermediate results.
+        - Provide a single, definitive numeric result, not a question or narrative.
+        - Complete all workflow steps; do not leave pending reviews.
+        - Parallelize computations for efficiency when possible.
+        - You may call calculator tools in parallel (if needed) to improve efficiency.
+        - No need to tell the human how you called or will call the tools.
+      </rules>
     </system_instructions>
   `),
   agenticLLMCaller: async (param) => {
