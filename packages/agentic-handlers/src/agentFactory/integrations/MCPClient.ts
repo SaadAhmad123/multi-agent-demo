@@ -20,7 +20,10 @@ export class MCPClient implements IAgenticMCPClient {
   private isConnected: boolean;
   private availableTools: Tool[];
 
-  constructor(private readonly url: string) {
+  constructor(
+    private readonly url: string,
+    private readonly requestInit?: () => RequestInit,
+  ) {
     this.client = null;
     this.isConnected = false;
     this.availableTools = [];
@@ -42,8 +45,12 @@ export class MCPClient implements IAgenticMCPClient {
   async connect(parentOtelSpan: Span) {
     try {
       const transport = this.url.includes('/mcp')
-        ? new StreamableHTTPClientTransport(new URL(this.url))
-        : new SSEClientTransport(new URL(this.url));
+        ? new StreamableHTTPClientTransport(new URL(this.url), {
+            requestInit: this.requestInit?.(),
+          })
+        : new SSEClientTransport(new URL(this.url), {
+            requestInit: this.requestInit?.(),
+          });
       this.client = new Client(
         {
           name: 'arvo-mcp-client',

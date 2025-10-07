@@ -6,11 +6,10 @@ import {
   astroDocsMcpAgent,
   fetchWebMcpAgent,
   operatorAgent,
+  githubMcpAgent,
 } from '@repo/agentic-handlers';
 import type { ArvoEvent } from 'arvo-core';
 import { createSimpleEventBroker, type IMachineMemory } from 'arvo-event-handler';
-import * as dotenv from 'dotenv';
-dotenv.config();
 
 /**
  * Executes an ArvoEvent through the event broker system, routing it to the appropriate handler.
@@ -34,6 +33,7 @@ export const execute = async (
       astroDocsMcpAgent.handlerFactory(),
       fetchWebMcpAgent.handlerFactory(),
       operatorAgent.handlerFactory({ memory }),
+      githubMcpAgent.handlerFactory(),
     ],
     {
       onDomainedEvents: async ({ event }) => {

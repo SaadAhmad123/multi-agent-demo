@@ -145,7 +145,7 @@ export const anthropicLLMCaller: LLMIntergration = async ({
 
   // Validate that Claude provided a usable response
   if (!data.response && !data.toolRequests) {
-    throw new Error('Something went wrong. No response or tool request');
+    data.response = 'Something went wrong. Unable to generate response or tool request. You can retry if you want';
   }
 
   return data;

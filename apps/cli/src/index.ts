@@ -1,6 +1,5 @@
 import type { ArvoEvent } from 'arvo-core';
 import { SimpleMachineMemory } from 'arvo-event-handler';
-import * as dotenv from 'dotenv';
 import { telemetrySdkStart, telemetrySdkStop } from './otel.js';
 import { input } from '@inquirer/prompts';
 import { requestProcessor } from './requestProcessor.js';
@@ -12,6 +11,7 @@ import {
   displayWelcomeBanner,
 } from './ui/index.js';
 import chalk from 'chalk';
+import * as dotenv from 'dotenv';
 dotenv.config();
 
 async function main() {

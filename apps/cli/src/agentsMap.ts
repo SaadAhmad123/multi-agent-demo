@@ -5,6 +5,7 @@ import {
   astroDocsMcpAgent,
   fetchWebMcpAgent,
   operatorAgent,
+  githubMcpAgent,
 } from '@repo/agentic-handlers';
 import { cleanString } from 'arvo-core';
 
@@ -36,6 +37,9 @@ export const agentMap = {
   },
   issac: {
     contract: fetchWebMcpAgent.contract.version('1.0.0'),
+  },
+  ray: {
+    contract: githubMcpAgent.contract.version('1.0.0'),
   },
 } as const;
 
