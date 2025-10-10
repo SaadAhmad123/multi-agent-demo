@@ -7,3 +7,4 @@ export { findDomainMcpAgent } from './handlers/agent.mcp.findadomain.js';
 export { fetchWebMcpAgent } from './handlers/agent.mcp.fetch.web.js';
 export { operatorAgent } from './handlers/agent.operator.js';
 export { githubMcpAgent } from './handlers/agent.mcp.github.js';
+export { zapierMcpAgent } from './handlers/agent.zapier.js';

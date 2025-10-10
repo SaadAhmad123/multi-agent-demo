@@ -11,7 +11,7 @@ marked.use(
  * Displays a formatted welcome banner when the application starts
  */
 export const displayWelcomeBanner = () => {
-  console.clear();
+  //console.clear();
   console.log(chalk.cyan.bold('\n╔════════════════════════════════════════╗'));
   console.log(chalk.cyan.bold('║     Agentic System Console v1.0       ║'));
   console.log(chalk.cyan.bold('╚════════════════════════════════════════╝\n'));

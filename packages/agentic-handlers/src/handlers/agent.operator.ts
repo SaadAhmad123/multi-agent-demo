@@ -8,9 +8,11 @@ import { astroDocsMcpAgent } from './agent.mcp.astro.docs.js';
 import { findDomainMcpAgent } from './agent.mcp.findadomain.js';
 import { webInfoAgent } from './agent.webinfo.js';
 import { githubMcpAgent } from './agent.mcp.github.js';
+import { zapierMcpAgent } from './agent.zapier.js';
 
 export const operatorAgent = createAgenticResumable({
   name: 'operator',
+  maxToolInteractions: 100,
   description: cleanString(`
     The primary orchestration agent that serves as the system coordinator, managing all 
     specialized peer agents. This operator analyzes user requests, discovers appropriate 
@@ -89,6 +91,7 @@ export const operatorAgent = createAgenticResumable({
     findDomainMcpAgent: findDomainMcpAgent.contract.version('1.0.0'),
     webInfoAgent: webInfoAgent.contract.version('1.0.0'),
     githubMcpAgent: githubMcpAgent.contract.version('1.0.0'),
+    zapierMcpAgent: zapierMcpAgent.contract.version('1.0.0'),
   },
   serviceDomains: {
     'com.human.review': [humanReviewServiceDomain],

@@ -104,7 +104,7 @@ export const createMcpAgent = <TName extends string, TOutput extends z.AnyZodObj
   description,
   maxToolInteractions,
 }: Omit<CreateAgenticResumableParams<TName, never, TOutput>, 'services' | 'agenticLLMCaller' | 'serviceDomains'> & {
-  mcpClient: IAgenticMCPClient;
+  mcpClient?: IAgenticMCPClient;
   agenticLLMCaller: LLMIntergration;
 }) => {
   /**
@@ -233,10 +233,10 @@ export const createMcpAgent = <TName extends string, TOutput extends z.AnyZodObj
           };
 
           // Establish MCP connection before processing
-          await mcpClient.connect(span);
+          await mcpClient?.connect(span);
 
           // Retrieve available tool definitions from the MCP server
-          const mcpClientToolDefinitions = await mcpClient.getToolDefinitions(span);
+          const mcpClientToolDefinitions = (await mcpClient?.getToolDefinitions(span)) ?? [];
 
           try {
             /**
@@ -338,7 +338,7 @@ export const createMcpAgent = <TName extends string, TOutput extends z.AnyZodObj
                * LLM requested tool invocations.
                * Execute all requested tools in parallel and collect results.
                */
-              if (toolRequests) {
+              if (toolRequests && mcpClient) {
                 const toolCalls: Array<Promise<{ id: string; data: string }>> = [];
                 for (const { type, id, data } of toolRequests) {
                   messages.push({
@@ -389,7 +389,7 @@ export const createMcpAgent = <TName extends string, TOutput extends z.AnyZodObj
             throw e as Error;
           } finally {
             // Always disconnect from MCP server, even if an error occurred
-            await mcpClient.disconnect(span);
+            await mcpClient?.disconnect(span);
           }
         },
       },

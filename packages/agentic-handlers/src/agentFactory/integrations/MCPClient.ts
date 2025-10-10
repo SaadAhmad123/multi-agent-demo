@@ -19,14 +19,15 @@ export class MCPClient implements IAgenticMCPClient {
   private client: Client | null;
   private isConnected: boolean;
   private availableTools: Tool[];
+  private readonly url: () => string;
+  private readonly requestInit: () => RequestInit;
 
-  constructor(
-    private readonly url: string,
-    private readonly requestInit?: () => RequestInit,
-  ) {
+  constructor(url: string | (() => string), requestInit?: RequestInit | (() => RequestInit)) {
     this.client = null;
     this.isConnected = false;
     this.availableTools = [];
+    this.url = typeof url === 'string' ? () => url : url;
+    this.requestInit = !requestInit ? () => ({}) : typeof requestInit === 'function' ? requestInit : () => requestInit;
   }
 
   /**
@@ -44,13 +45,11 @@ export class MCPClient implements IAgenticMCPClient {
    */
   async connect(parentOtelSpan: Span) {
     try {
-      const transport = this.url.includes('/mcp')
-        ? new StreamableHTTPClientTransport(new URL(this.url), {
-            requestInit: this.requestInit?.(),
-          })
-        : new SSEClientTransport(new URL(this.url), {
-            requestInit: this.requestInit?.(),
-          });
+      const url = this.url();
+      const requestInit = this.requestInit();
+      const transport = url.includes('/mcp')
+        ? new StreamableHTTPClientTransport(new URL(url), { requestInit })
+        : new SSEClientTransport(new URL(url), { requestInit });
       this.client = new Client(
         {
           name: 'arvo-mcp-client',
@@ -88,7 +87,7 @@ export class MCPClient implements IAgenticMCPClient {
         message: (error as Error)?.message,
       });
       this.isConnected = false;
-      throw new Error(`Unable to conntect to the MCP Server@${this.url}`);
+      throw new Error(`Unable to conntect to the MCP Server@${this.url()}`);
     }
   }
 

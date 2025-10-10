@@ -6,6 +6,7 @@ import {
   fetchWebMcpAgent,
   operatorAgent,
   githubMcpAgent,
+  zapierMcpAgent,
 } from '@repo/agentic-handlers';
 import { cleanString } from 'arvo-core';
 
@@ -40,6 +41,9 @@ export const agentMap = {
   },
   ray: {
     contract: githubMcpAgent.contract.version('1.0.0'),
+  },
+  troy: {
+    contract: zapierMcpAgent.contract.version('1.0.0'),
   },
 } as const;
 

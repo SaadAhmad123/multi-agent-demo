@@ -7,6 +7,7 @@ import {
   fetchWebMcpAgent,
   operatorAgent,
   githubMcpAgent,
+  zapierMcpAgent,
 } from '@repo/agentic-handlers';
 import type { ArvoEvent } from 'arvo-core';
 import { createSimpleEventBroker, type IMachineMemory } from 'arvo-event-handler';
@@ -34,6 +35,7 @@ export const execute = async (
       fetchWebMcpAgent.handlerFactory(),
       operatorAgent.handlerFactory({ memory }),
       githubMcpAgent.handlerFactory(),
+      zapierMcpAgent.handlerFactory(),
     ],
     {
       onDomainedEvents: async ({ event }) => {
