@@ -4,6 +4,7 @@ import { openaiLLMCaller } from '../agentFactory/integrations/openai.js';
 import { cleanString } from 'arvo-core';
 
 export const astroDocsMcpAgent = createMcpAgent({
+  alias: 'emma',
   name: 'astro.docs',
   description: cleanString(`
     An intelligent documentation assistant that provides accurate, up-to-date information 

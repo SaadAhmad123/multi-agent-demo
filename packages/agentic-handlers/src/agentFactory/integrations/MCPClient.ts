@@ -1,11 +1,10 @@
-import type { IAgenticMCPClient } from '../createMcpAgent.js';
 import { Client } from '@modelcontextprotocol/sdk/client';
 import type { Tool, ListToolsResult } from '@modelcontextprotocol/sdk/types.js';
 import { SpanStatusCode, type Span } from '@opentelemetry/api';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { exceptionToSpan, logToSpan } from 'arvo-core';
-import type { AgenticToolDefinition } from '../types.js';
+import type { AgenticToolDefinition, IAgenticMCPClient } from '../types.js';
 
 /**
  * Model Context Protocol (MCP) client implementation for connecting to and interacting with MCP servers.

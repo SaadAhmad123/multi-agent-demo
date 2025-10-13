@@ -3,6 +3,7 @@ import { anthropicLLMCaller } from '../agentFactory/integrations/anthropic.js';
 import { MCPClient } from '../agentFactory/integrations/MCPClient.js';
 
 export const githubMcpAgent = createMcpAgent({
+  alias: 'ray',
   name: 'github',
   description: `
     A secure GitHub management agent that connects to the user's personal GitHub account 

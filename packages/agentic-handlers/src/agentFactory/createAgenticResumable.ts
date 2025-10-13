@@ -6,6 +6,9 @@ import {
   ArvoOpenTelemetry,
   exceptionToSpan,
   type OpenTelemetryHeaders,
+  cleanString,
+  type InferVersionedArvoContract,
+  logToSpan,
 } from 'arvo-core';
 import {
   ConfigViolation,
@@ -15,11 +18,12 @@ import {
 } from 'arvo-event-handler';
 import { z } from 'zod';
 import type {
-  CallAgenticLLMOutput,
-  CallAgenticLLMParam,
   CreateAgenticResumableParams,
   AnyVersionedContract,
   AgenticToolDefinition,
+  LLMIntegrationParam,
+  LLMIntegrationOutput,
+  IToolUseApprovalMemory,
 } from './types.js';
 import { openInferenceSpanInitAttributesSetter, openInferenceSpanOutputAttributesSetter } from './helpers.otel.js';
 import {
@@ -30,6 +34,8 @@ import { SpanStatusCode } from '@opentelemetry/api';
 import { AgenticMessageContentSchema } from './schemas.js';
 import { jsonUsageIntentPrompt, toolInteractionLimitPrompt } from './helpers.prompt.js';
 import { zodToJsonSchema } from 'zod-to-json-schema';
+import { humanReviewContract } from './humanReview.contract.js';
+import { toolUseApprovalContract } from './toolUseApproval.contract.js';
 
 /**
  * [Utility] Validates that service contracts for agentic resumables meet required structure.
@@ -88,79 +94,12 @@ const DEFAULT_AGENT_OUTPUT_FORMAT = z.object({ response: z.string() });
  * This factory function creates a resumable orchestrator specifically designed for AI agent workflows.
  * The resulting agent can engage in multi-turn conversations, intelligently select and execute tools
  * based on context, and maintain conversation state across tool executions.
- *
- * ## Core Capabilities
- * - **Natural Language Processing**: Accepts user messages and generates contextually appropriate responses
- * - **Intelligent Tool Selection**: Uses LLM reasoning to determine which tools to invoke and when
- * - **Parallel Tool Execution**: Can execute multiple tools concurrently (it is event driven) and wait for all results
- * - **Conversation Management**: Maintains full conversation history and context across interactions
- * - **Type-Safe Tool Integration**: Leverages Arvo contracts for compile-time type safety
- * - **Structured Output Support**: Can return structured data instead of just text responses
- * - **Observability Integration**: Full OpenTelemetry tracing for debugging and monitoring
- *
- * ## Service Contract Requirements
- * All service contracts must include:
- * - `toolUseId$$`: Required for correlating LLM tool calls with service responses
- * - `parentSubject$$`: Required for orchestrator contracts to enable nested orchestration
- *
- * @returns Object containing the generated Arvo contract and handler factory for deployment
- *
- * @throws {ConfigViolation} When service contracts don't meet agentic resumable requirements
- *
- * @example
- * ```typescript
- * // Create a customer support agent with tool access
- * const supportAgent = createAgenticResumable({
- *   name: 'customer.support', // The name must be a-z, A-Z, .
- *   description: 'The customer support agent which can do user lookup, ticket creation and consult the internal knowledge base',
- *   services: {
- *     userLookup: userContract.version('1.0.0'),
- *     ticketCreation: ticketContract.version('1.0.0'),
- *     knowledgeBase: kbContract.version('1.0.0')
- *   },
- *   agenticLLMCaller: async (params) => {
- *     // TODO - Integrate with your preferred LLM provider
- *   },
- *   systemPrompt: ({ type, messages }) => {
- *     const basePrompt = "You are a helpful customer support agent...";
- *     if (type === 'tool_results') {
- *       return basePrompt + "\nProcess the tool results and provide a comprehensive response.";
- *     }
- *     return basePrompt;
- *   },
- *   serviceDomains: {
- *     'com.human.review': ['human-review-domain'] // Route sensitive operations to human review
- *   },
- *   enableMessageHistoryInResponse: true // Include full conversation in response
- * });
- * ```
- *
- * @example
- * ```typescript
- * // Create a data extraction agent with structured output
- * const extractorAgent = createAgenticResumable({
- *   name: 'data.extractor',
- *   description: 'A data extraction agent which takes unstructured text and returns structured data',
- *   outputFormat: z.object({
- *     entities: z.array(z.object({
- *       name: z.string(),
- *       type: z.enum(['person', 'organization', 'location']),
- *       confidence: z.number()
- *     })),
- *     summary: z.string()
- *   }),
- *   agenticLLMCaller: async (params) => {
- *     // TODO - Integrate with your preferred LLM provider
- *     // TODO - LLM must return structured JSON matching the outputFormat schema
- *   }
- * });
- * ```
  */
 export const createAgenticResumable = <
   TName extends string,
-  TService extends Record<string, AnyVersionedContract>,
   TOutput extends z.AnyZodObject = typeof DEFAULT_AGENT_OUTPUT_FORMAT,
 >({
+  alias,
   name,
   services,
   agenticLLMCaller,
@@ -170,7 +109,9 @@ export const createAgenticResumable = <
   enableMessageHistoryInResponse,
   description,
   maxToolInteractions,
-}: CreateAgenticResumableParams<TName, TService, TOutput>) => {
+  toolUseApproval,
+  humanReview,
+}: CreateAgenticResumableParams<TName, TOutput>) => {
   validateServiceContract(services ?? {});
 
   /**
@@ -183,7 +124,16 @@ export const createAgenticResumable = <
   const contract = createArvoOrchestratorContract({
     uri: `#/amas/resumable/agent/${name.replaceAll('.', '/')}`,
     name: `agent.${name}` as `agent.${TName}`,
-    description: description,
+    description: alias
+      ? cleanString(`
+      # My Introduction:
+      I am a human user facing agent, known to humans as "@${alias}"
+      meaning I can be called by the human user directly when they mention
+      @${alias} in the message
+      # My description:
+      ${description}
+    `)
+      : description,
     versions: {
       '1.0.0': {
         init: z.object({
@@ -220,7 +170,7 @@ export const createAgenticResumable = <
    */
   type Context = {
     currentSubject: string;
-    messages: CallAgenticLLMParam['messages'];
+    messages: LLMIntegrationParam['messages'];
     toolTypeCount: Record<string, number>;
     toolUseId$$: string | null;
     currentToolCallIteration: number;
@@ -249,17 +199,72 @@ export const createAgenticResumable = <
    * @param dependencies - Required dependencies including memory provider for state persistence
    * @returns Configured ArvoResumable instance ready for deployment in the event system
    */
-  const handlerFactory: EventHandlerFactory<{ memory: IMachineMemory<Record<string, unknown>> }> = ({ memory }) =>
-    createArvoResumable({
+  const handlerFactory: EventHandlerFactory<{
+    memory: IMachineMemory<Record<string, unknown>>;
+    toolUseApprovalMemory?: IToolUseApprovalMemory;
+    // These are dynamic parameters which can extend the agent functionality at registration time beyond what is configured at build time
+    extend?: {
+      systemPrompt?: string;
+      services?: NonNullable<CreateAgenticResumableParams<TName, TOutput>>['services'];
+      // Define the domains of the additional services
+      serviceDomains?: NonNullable<CreateAgenticResumableParams<TName, TOutput>>['serviceDomains'];
+      // Define which additional services need approval
+      servicesRequireApproval?: string[];
+    };
+  }> = (handlerParam) => {
+    const hrContract = humanReviewContract.version('1.0.0');
+    const tuaContract = toolUseApprovalContract.version('1.0.0');
+    const handlerServices: Record<string, AnyVersionedContract> = {};
+
+    for (const serviceContract of [
+      ...Object.values(services ?? {}),
+      ...Object.values(handlerParam.extend?.services ?? {}),
+    ]) {
+      if (!handlerServices[serviceContract.dataschema]) {
+        handlerServices[serviceContract.dataschema] = serviceContract;
+      }
+    }
+
+    const handlerHumanReview = humanReview ?? null;
+    const handlerToolUseApproval = !toolUseApproval
+      ? null
+      : {
+          ...toolUseApproval,
+          tools: [...toolUseApproval.tools, ...(handlerParam.extend?.servicesRequireApproval ?? [])].filter(
+            (item) => !([hrContract.accepts.type, tuaContract.accepts.type] as string[]).includes(item),
+          ),
+        };
+    const handlerAlias = alias ?? null;
+    const handlerServiceDomains: Record<string, string[]> = serviceDomains ?? {};
+
+    for (const [key, value] of Object.entries(handlerParam.extend?.serviceDomains ?? {})) {
+      if (handlerServiceDomains[key]) {
+        handlerServiceDomains[key] = Array.from(new Set([...handlerServiceDomains[key], ...value]));
+      } else {
+        handlerServiceDomains[key] = value;
+      }
+    }
+
+    // For human and tool use events, the domains defined by the repective configurations are prioratised
+    if (handlerHumanReview) {
+      handlerServices[hrContract.dataschema] = hrContract;
+      handlerServiceDomains[humanReviewContract.type] = handlerHumanReview.domain;
+    }
+    if (handlerToolUseApproval) {
+      handlerServices[tuaContract.dataschema] = tuaContract;
+      handlerServiceDomains[toolUseApprovalContract.type] = handlerToolUseApproval.domain;
+    }
+
+    return createArvoResumable({
       contracts: {
         self: contract,
-        services: (services ?? {}) as TService,
+        services: handlerServices,
       },
       types: {
         context: {} as Context,
       },
       executionunits: 0,
-      memory: memory,
+      memory: handlerParam.memory,
       handler: {
         '1.0.0': async ({ contracts, service, input, context, collectedEvents, metadata, span }) => {
           // Manually crafting parent otel header to prevent potential span corruption
@@ -288,7 +293,9 @@ export const createAgenticResumable = <
            * - Removing Arvo-specific coordination fields (toolUseId$$, parentSubject$$)
            * - Preserving contract descriptions and input validation schemas
            */
-          const toolDef: AgenticToolDefinition[] = Object.values(contracts.services).map((item) => {
+          const toolDef: AgenticToolDefinition[] = [];
+          const toolsWhichRequireApproval: string[] = [];
+          for (const item of Object.values(contracts.services)) {
             const inputSchema = item.toJsonSchema().accepts.schema;
             // @ts-ignore - The 'properties' field exists in there but is not pick up by typescript compiler
             const { toolUseId$$, parentSubject$$, ...cleanedProperties } = inputSchema?.properties ?? {};
@@ -296,16 +303,39 @@ export const createAgenticResumable = <
             const cleanedRequired = (inputSchema?.required ?? []).filter(
               (item: string) => item !== 'toolUseId$$' && item !== 'parentSubject$$',
             );
-            return {
+            // Cleaning the description so that approval requirement is set explicitly by the configuration
+            const cleanedDescription = item.description.replaceAll('[[REQUIRE APPROVAL]]', '');
+            toolDef.push({
               name: item.accepts.type,
-              description: item.description,
+              description: await (async () => {
+                if (
+                  handlerToolUseApproval?.tools.includes(item.accepts.type) &&
+                  !(
+                    await handlerParam.toolUseApprovalMemory?.get(
+                      contracts.self.accepts.type,
+                      item.accepts.type.replaceAll('.', '_'),
+                      span,
+                    )
+                  )?.value
+                ) {
+                  logToSpan({ level: 'INFO', message: `Agentic tool '${item.accepts.type}' requires approval` }, span);
+                  toolsWhichRequireApproval.push(item.accepts.type.replaceAll('.', '_'));
+                  return `[[REQUIRE APPROVAL]]. ${cleanedDescription}`;
+                }
+                logToSpan(
+                  { level: 'INFO', message: `Agentic tool '${item.accepts.type}' does not require approval` },
+                  span,
+                );
+                return cleanedDescription;
+              })(),
+
               input_schema: {
                 ...inputSchema,
                 properties: cleanedProperties,
                 required: cleanedRequired,
               },
-            };
-          });
+            });
+          }
 
           /**
            * Wraps the LLM caller with OpenTelemetry observability and system prompt generation.
@@ -315,11 +345,16 @@ export const createAgenticResumable = <
            * system prompts with structured output instructions when applicable.
            */
           const otelAgenticLLMCaller: (
-            param: Omit<CallAgenticLLMParam<TService, TOutput>, 'span' | 'systemPrompt'> & {
+            param: Omit<LLMIntegrationParam, 'span' | 'systemPrompt'> & {
               systemPrompt: string | null;
               description: string | null;
+              introduction: {
+                alias: string | null;
+                handlerSource: string;
+                agentName: string;
+              };
             },
-          ) => Promise<CallAgenticLLMOutput<TService>> = async (params) => {
+          ) => Promise<LLMIntegrationOutput> = async (params) => {
             // This function automatically inherits from the parent span
             return await ArvoOpenTelemetry.getInstance().startActiveSpan({
               name: 'Agentic LLM Call',
@@ -332,11 +367,67 @@ export const createAgenticResumable = <
                 try {
                   const finalSystemPrompt =
                     [
-                      ...(params.description ? [`# Your Agentic Description\n${params.description}`] : []),
-                      ...(params.systemPrompt ? [`# Instructions:\n${params.systemPrompt}`] : []),
+                      cleanString(`
+                        # Your Identity
+                        You are an AI agent with the following identities:
+                        ${params.introduction.alias ? `- When interacting with humans, you are known as "@${params.introduction.alias}"` : ''} 
+                        - Your system identifier is "${params.introduction.handlerSource}"
+                        - Other AI agents know you as "${params.introduction.agentName}"
+                      `),
+                      ...(params.description ? [`# Your Purpose and Capabilities\n${params.description}`] : []),
+                      ...(handlerHumanReview
+                        ? [
+                            cleanString(`
+                              # CRITICAL: Human Interaction Required
+                              The ${hrContract.accepts.type.replaceAll('.', '_')} tool is your DIRECT communication channel with the user. Use it to talk TO them.
+                              ## Purpose 1: Requesting Clarification
+                              When the user's request is unclear, ambiguous, or missing critical information, ask them directly.
+                              **Call ${hrContract.accepts.type.replaceAll('.', '_')} with your questions to the user.** Do NOT ask whether you should ask questions. Just ask the questions.
+                              Address them naturally: "Could you clarify...", "I need to know...", "Which would you prefer...", "Do you want me to..."
+                              Explain what's unclear: what information is missing or ambiguous, why you need it to proceed correctly, what different approaches are possible depending on their answer.
+                              **Important:** When asking for clarification, do NOT propose an execution plan. Just ask your clarifying questions and the user will respond through this same tool.
+                              ## Purpose 2: Requesting Execution Approval
+                              When the request is clear and you have all necessary information, present your execution plan for approval.
+                              **Call ${hrContract.accepts.type.replaceAll('.', '_')} with your plan addressed to the user.**
+                              Address them directly: "My execution plan is...", "Could you approve this approach...", "May I proceed with..."
+                              Include in your plan: what you will do to fulfill their request, which tools/agents you'll use and in what order, why you need each tool/agent, what the expected outcome will be.
+                              **Important:** Only present an execution plan when you have sufficient information. If anything is unclear, use Purpose 1 first.
+                              ## Response Handling
+                              The user responds through the same ${hrContract.accepts.type.replaceAll('.', '_')} tool. When they respond:
+                              - **If they clarified information:** Determine if you now have enough to create an execution plan (Purpose 2) or need more clarification (Purpose 1)
+                              - **If they approved your plan:** Execute immediately by calling the tools/agents in your approved plan
+                              - **If they requested plan changes:** Revise your plan and resubmit for approval (Purpose 2)
+                              - **If they rejected your plan:** Propose alternatives directly to them (Purpose 2)
+                              - **If changes aren't feasible:** Explain constraints and propose viable alternatives (Purpose 2)
+                              Continue using ${hrContract.accepts.type.replaceAll('.', '_')} until you have both clarity AND explicit execution approval.
+                              ## Execution
+                              Only execute (call tools/agents) after receiving explicit approval. Never bypass this step.
+                              **Critical:** The ${hrContract.accepts.type.replaceAll('.', '_')} tool sends messages DIRECTLY to the user. Don't ask meta-questions about whether you should communicate. Just communicate.
+                            `),
+                          ]
+                        : []),
+                      ...(toolsWhichRequireApproval.length
+                        ? [
+                            cleanString(`
+                              # CRITICAL: Restricted Tool Approval Required
+                              The following tools require explicit approval before use:
+                              ${toolsWhichRequireApproval.map((tool) => `- ${tool}`).join('\n')}
+                              
+                              Before using any restricted tool:
+                              1. Call ${tuaContract.accepts.type.replaceAll('.', '_')} to request approval directly from the user
+                              2. Explain clearly why you need to use each restricted tool and what you'll do with it
+                              3. If denied, inform the user and propose alternative approaches
+                              
+                              **Important:** ${tuaContract.accepts.type.replaceAll('.', '_')} sends your approval request DIRECTLY to the user. Don't ask whether you should request approval - just request it.
+                              
+                              Tools NOT listed above can be used freely without approval.
+                            `),
+                          ]
+                        : []),
+                      ...(params.systemPrompt ? [`# Your Instructions\n${params.systemPrompt}`] : []),
                       ...(params.outputFormat
                         ? [
-                            `# JSON Response Requirements:\n${jsonUsageIntentPrompt(zodToJsonSchema(params.outputFormat))}`,
+                            `# Required Response Format\nYou must respond in the following JSON format:\n${jsonUsageIntentPrompt(zodToJsonSchema(params.outputFormat))}`,
                           ]
                         : []),
                     ]
@@ -375,7 +466,7 @@ export const createAgenticResumable = <
 
           // Handle conversation initialization with the user's initial message
           if (input) {
-            const messages: CallAgenticLLMParam['messages'] = [];
+            const messages: LLMIntegrationParam['messages'] = [];
 
             if (input.data.additionalSystemPrompt?.trim()) {
               messages.push({
@@ -397,17 +488,26 @@ export const createAgenticResumable = <
             const { toolRequests, toolTypeCount, response } = await otelAgenticLLMCaller({
               type: 'init',
               messages,
-              services: contracts.services,
               toolDefinitions: toolDef,
               description: description ?? null,
-              systemPrompt:
-                systemPrompt?.({
-                  messages,
-                  services: contracts.services,
-                  toolDefinitions: toolDef,
-                  type: 'init',
-                }) ?? null,
+              systemPrompt: [
+                ...(systemPrompt
+                  ? [
+                      systemPrompt({
+                        messages,
+                        toolDefinitions: toolDef,
+                        type: 'init',
+                      }),
+                    ]
+                  : []),
+                ...(handlerParam.extend?.systemPrompt ? [handlerParam.extend.systemPrompt] : []),
+              ].join('\n\n'),
               outputFormat: outputFormat ?? null,
+              introduction: {
+                alias: handlerAlias,
+                handlerSource: contracts.self.accepts.type,
+                agentName: contracts.self.accepts.type.replaceAll('.', '_'),
+              },
             });
 
             // LLM provided direct response without needing tools - complete immediately
@@ -443,13 +543,15 @@ export const createAgenticResumable = <
                 // biome-ignore lint/style/noNonNullAssertion: Typescript compiler is being silly here. Not understanding that this can never be undefined
                 if (toolRequests[i]!.data && typeof toolRequests[i]!.data === 'object') {
                   // biome-ignore lint/style/noNonNullAssertion: Typescript compiler is being silly here. Not understanding that this can never be undefined
-                  toolRequests[i]!.data.toolUseId$$ = toolRequests[i]!.id; // To coordination tool calls for the LLM
+                  // biome-ignore lint/suspicious/noExplicitAny: Cannot be helped Typescript cannot resolve this unfortunately
+                  (toolRequests[i]!.data as any).toolUseId$$ = toolRequests[i]!.id; // To coordination tool calls for the LLM
                   // biome-ignore lint/style/noNonNullAssertion: Typescript compiler is being silly here. Not understanding that this can never be undefined
-                  toolRequests[i]!.data.parentSubject$$ = input.subject; // To coordination nested orchestration/agentic invocations
+                  // biome-ignore lint/suspicious/noExplicitAny: Cannot be helped Typescript cannot resolve this unfortunately
+                  (toolRequests[i]!.data as any).parentSubject$$ = input.subject; // To coordination nested orchestration/agentic invocations
                 }
                 // biome-ignore lint/style/noNonNullAssertion: Typescript compiler is being silly here. Not understanding that this can never be undefined
                 const { type, id, data } = toolRequests[i]!;
-                const { toolUseId$$, ...toolInputData } = data;
+                const { toolUseId$$, ...toolInputData } = data as Record<string, unknown>;
                 messages.push({
                   role: 'assistant',
                   content: [
@@ -473,13 +575,36 @@ export const createAgenticResumable = <
                   maxToolCallIterationAllowed: maxToolInteractions ?? 5,
                 },
                 services: toolRequests.map((item) =>
-                  item.type in (serviceDomains ?? {}) ? { ...item, domain: serviceDomains?.[item.type] } : item,
+                  item.type in handlerServiceDomains ? { ...item, domain: handlerServiceDomains[item.type] } : item,
                 ),
               };
             }
           }
 
           if (!context) throw new Error('The context is not properly set. Faulty initialization');
+
+          if (
+            handlerParam.toolUseApprovalMemory &&
+            tuaContract.emitList[0]?.type &&
+            service?.type === tuaContract.emitList[0].type
+          ) {
+            const serviceEvent = service as InferVersionedArvoContract<
+              typeof tuaContract
+            >['emits']['evt.tool.approval.success'];
+            await Promise.all(
+              serviceEvent.data.approvals.map(async (item) => {
+                return await handlerParam.toolUseApprovalMemory?.set(
+                  contracts.self.accepts.type,
+                  item.tool,
+                  {
+                    value: item.value,
+                    comments: item.comments,
+                  },
+                  span,
+                );
+              }),
+            ).catch((e) => exceptionToSpan(e as Error, span));
+          }
 
           // Check if all expected tool responses have been collected before proceeding [Arvo Best Practice]
           const haveAllEventsBeenCollected = compareCollectedEventCounts(
@@ -528,17 +653,26 @@ export const createAgenticResumable = <
           const { response, toolRequests, toolTypeCount } = await otelAgenticLLMCaller({
             type: 'tool_results',
             messages,
-            services: contracts.services,
             toolDefinitions: toolDef,
             description: description ?? null,
-            systemPrompt:
-              systemPrompt?.({
-                messages,
-                services: contracts.services,
-                toolDefinitions: toolDef,
-                type: 'tool_results',
-              }) ?? null,
+            systemPrompt: [
+              ...(systemPrompt
+                ? [
+                    systemPrompt({
+                      messages,
+                      toolDefinitions: toolDef,
+                      type: 'init',
+                    }),
+                  ]
+                : []),
+              ...(handlerParam.extend?.systemPrompt ? [handlerParam.extend.systemPrompt] : []),
+            ].join('\n\n'),
             outputFormat: outputFormat ?? null,
+            introduction: {
+              alias: handlerAlias,
+              handlerSource: contracts.self.accepts.type,
+              agentName: contracts.self.accepts.type.replaceAll('.', '_'),
+            },
           });
 
           // LLM provided final response - complete the conversation
@@ -570,13 +704,15 @@ export const createAgenticResumable = <
               // biome-ignore lint/style/noNonNullAssertion: Typescript compiler is being silly here. Not understanding that this can never be undefined
               if (toolRequests[i]!.data && typeof toolRequests[i]!.data === 'object') {
                 // biome-ignore lint/style/noNonNullAssertion: Typescript compiler is being silly here. Not understanding that this can never be undefined
-                toolRequests[i]!.data.toolUseId$$ = toolRequests[i]!.id;
+                // biome-ignore lint/suspicious/noExplicitAny: Cannot be helped Typescript cannot resolve this unfortunately
+                (toolRequests[i]!.data as any).toolUseId$$ = toolRequests[i]!.id;
                 // biome-ignore lint/style/noNonNullAssertion: Typescript compiler is being silly here. Not understanding that this can never be undefined
-                toolRequests[i]!.data.parentSubject$$ = context.currentSubject;
+                // biome-ignore lint/suspicious/noExplicitAny: Cannot be helped Typescript cannot resolve this unfortunately
+                (toolRequests[i]!.data as any).parentSubject$$ = context.currentSubject;
               }
               // biome-ignore lint/style/noNonNullAssertion: Typescript compiler is being silly here. Not understanding that this can never be undefined
               const { type, id, data } = toolRequests[i]!;
-              const { toolUseId$$, ...toolInputData } = data;
+              const { toolUseId$$, ...toolInputData } = data as Record<string, unknown>;
               messages.push({
                 role: 'assistant',
                 content: [
@@ -597,16 +733,18 @@ export const createAgenticResumable = <
                 currentToolCallIteration: context.currentToolCallIteration + 1,
               },
               services: toolRequests.map((item) =>
-                item.type in (serviceDomains ?? {}) ? { ...item, domain: serviceDomains?.[item.type] } : item,
+                item.type in handlerServiceDomains ? { ...item, domain: handlerServiceDomains[item.type] } : item,
               ),
             };
           }
         },
       },
     });
+  };
 
   return {
     contract,
     handlerFactory,
+    alias,
   };
 };

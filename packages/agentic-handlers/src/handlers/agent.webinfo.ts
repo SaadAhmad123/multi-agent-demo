@@ -1,11 +1,10 @@
 import { createAgenticResumable } from '../agentFactory/createAgenticResumable.js';
 import { anthropicLLMCaller } from '../agentFactory/integrations/anthropic.js';
 import { cleanString } from 'arvo-core';
-import type { CallAgenticLLMOutput } from '../agentFactory/types.js';
 import { astroDocsMcpAgent } from './agent.mcp.astro.docs.js';
 import { findDomainMcpAgent } from './agent.mcp.findadomain.js';
 import { fetchWebMcpAgent } from './agent.mcp.fetch.web.js';
-import { humanReviewContract, humanReviewServiceDomain } from './human.review.js';
+import { humanReviewServiceDomain } from '../agentFactory/humanReview.contract.js';
 
 /**
  * Web Information Agent implementation that demonstrates inter-agent
@@ -16,6 +15,7 @@ import { humanReviewContract, humanReviewServiceDomain } from './human.review.js
  * whether interfacing with ArvoOrchestrators, ArvoResumables, ArvoEventHandlers or Arvo Agents.
  */
 export const webInfoAgent = createAgenticResumable({
+  alias: 'tom',
   name: 'web.info',
   description: cleanString(`
     A comprehensive web information orchestrator that coordinates three specialized capabilities: 
@@ -60,10 +60,10 @@ export const webInfoAgent = createAgenticResumable({
     astroDocAgent: astroDocsMcpAgent.contract.version('1.0.0'),
     findDomainAgent: findDomainMcpAgent.contract.version('1.0.0'),
     fetchWebAgent: fetchWebMcpAgent.contract.version('1.0.0'),
-    humanReviewContract: humanReviewContract.version('1.0.0'),
   },
-  serviceDomains: { 'com.human.review': [humanReviewServiceDomain] },
-  agenticLLMCaller: async (param) => {
-    return (await anthropicLLMCaller(param)) as CallAgenticLLMOutput<typeof param.services>;
+  humanReview: {
+    require: true,
+    domain: [humanReviewServiceDomain],
   },
+  agenticLLMCaller: anthropicLLMCaller,
 });

@@ -12,6 +12,7 @@ import { openaiLLMCaller } from '../agentFactory/integrations/openai.js';
  * providing flexibility in output schema definition.
  */
 export const findDomainMcpAgent = createMcpAgent({
+  alias: 'steve',
   name: 'findadomain',
   description: cleanString(`
     A domain discovery and analysis agent that helps find available domain names, 

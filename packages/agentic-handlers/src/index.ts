@@ -1,10 +1,12 @@
 export { calculatorContract, calculatorHandler } from './handlers/calculator.handler.js';
 export { calculatorAgent } from './handlers/agent.calculator.js';
-export { humanReviewContract, humanReviewServiceDomain } from './handlers/human.review.js';
+export { humanReviewContract, humanReviewServiceDomain } from './agentFactory/humanReview.contract.js';
+export { toolUseApprovalContract } from './agentFactory/toolUseApproval.contract.js';
 export { webInfoAgent } from './handlers/agent.webinfo.js';
 export { astroDocsMcpAgent } from './handlers/agent.mcp.astro.docs.js';
 export { findDomainMcpAgent } from './handlers/agent.mcp.findadomain.js';
 export { fetchWebMcpAgent } from './handlers/agent.mcp.fetch.web.js';
 export { operatorAgent } from './handlers/agent.operator.js';
 export { githubMcpAgent } from './handlers/agent.mcp.github.js';
-export { zapierMcpAgent } from './handlers/agent.zapier.js';
+export { zapierMcpAgent } from './handlers/agent.mcp.zapier.js';
+export type { IToolUseApprovalMemory } from './agentFactory/types.js';

@@ -4,6 +4,7 @@ import { MCPClient } from '../agentFactory/integrations/MCPClient.js';
 import { openaiLLMCaller } from '../agentFactory/integrations/openai.js';
 
 export const fetchWebMcpAgent = createMcpAgent({
+  alias: 'issac',
   name: 'fetch.web',
   description: cleanString(`
     A specialized web content retrieval agent that fetches and analyzes content from any 

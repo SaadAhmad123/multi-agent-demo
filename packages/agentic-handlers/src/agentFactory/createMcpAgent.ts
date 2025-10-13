@@ -1,65 +1,31 @@
 // This code is designed to be copy and pasted into you code
 import { z } from 'zod';
-import type { AgenticToolDefinition, CreateAgenticResumableParams } from './types.js';
-import { ArvoOpenTelemetry, createSimpleArvoContract, exceptionToSpan, type OpenTelemetryHeaders } from 'arvo-core';
+import {
+  ArvoOpenTelemetry,
+  cleanString,
+  createSimpleArvoContract,
+  exceptionToSpan,
+  type OpenTelemetryHeaders,
+} from 'arvo-core';
 import { AgenticMessageContentSchema } from './schemas.js';
 import { createArvoEventHandler, type EventHandlerFactory } from 'arvo-event-handler';
-import type { LLMIntergration, LLMIntegrationParam, LLMIntegrationOutput } from './integrations/types.js';
 import { jsonUsageIntentPrompt, toolInteractionLimitPrompt } from './helpers.prompt.js';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { openInferenceSpanInitAttributesSetter, openInferenceSpanOutputAttributesSetter } from './helpers.otel.js';
 import { SpanStatusCode } from '@opentelemetry/api';
-import type { Span } from '@opentelemetry/api';
+import type {
+  CreateAgenticResumableParams,
+  IAgenticMCPClient,
+  LLMIntergration,
+  LLMIntegrationParam,
+  LLMIntegrationOutput,
+} from './types.js';
 
 /**
  * Default output format for agents that don't specify a custom output schema.
  * Provides a simple string response format for basic conversational agents.
  */
 const DEFAULT_AGENT_OUTPUT_FORMAT = z.object({ response: z.string() });
-
-/**
- * Interface for Model Context Protocol (MCP) client implementations.
- * Provides methods for managing MCP server connections and invoking tools.
- */
-export interface IAgenticMCPClient {
-  /**
-   * Establishes a connection to the MCP server.
-   * Must be called before any tool invocations.
-   * @returns Promise that resolves when connection is established
-   * @throws {Error} If connection to MCP server fails and you want to emit a system error event
-   * @throws {ViolationError} If connection to MCP server fails and you want to throw an error you want to customer handle
-   */
-  connect: (parentOtelSpan: Span) => Promise<void>;
-
-  /**
-   * Invokes a specific tool through the MCP protocol.
-   *
-   * @param param - Tool invocation parameters
-   * @param parentOtelSpan - OpenTelemetry span for tracing the tool invocation
-   * @returns Promise resolving to the tool's response as a string
-   */
-  invokeTool: (
-    param: { toolName: string; toolArguments?: Record<string, unknown> | null },
-    parentOtelSpan: Span,
-  ) => Promise<string>;
-
-  /**
-   * Gracefully disconnects from the MCP server.
-   * Should be called before agent shutsdown.
-   *
-   * @param parentOtelSpan - OpenTelemetry span for tracing the disconnection operation
-   * @returns Promise that resolves when disconnection is complete
-   */
-  disconnect: (parentOtelSpan: Span) => Promise<void>;
-
-  /**
-   * Retrieves all available tool definitions from the MCP server.
-   * Used to discover what tools are available for the agent to use.
-   *
-   * @param parentOtelSpan - OpenTelemetry span for tracing the discovery operation
-   */
-  getToolDefinitions: (parentOtelSpan: Span) => Promise<AgenticToolDefinition[]>;
-}
 
 /**
  * Creates an MCP-enabled agent that can interact with tools via the Model Context Protocol.
@@ -95,6 +61,7 @@ export interface IAgenticMCPClient {
  * - Return System Error Evetn If maximum tool invocation cycles (maxToolInteractions or 5) is exceeded
  */
 export const createMcpAgent = <TName extends string, TOutput extends z.AnyZodObject>({
+  alias,
   name,
   outputFormat,
   enableMessageHistoryInResponse,
@@ -103,7 +70,7 @@ export const createMcpAgent = <TName extends string, TOutput extends z.AnyZodObj
   systemPrompt,
   description,
   maxToolInteractions,
-}: Omit<CreateAgenticResumableParams<TName, never, TOutput>, 'services' | 'agenticLLMCaller' | 'serviceDomains'> & {
+}: Omit<CreateAgenticResumableParams<TName, TOutput>, 'services' | 'agenticLLMCaller' | 'serviceDomains'> & {
   mcpClient?: IAgenticMCPClient;
   agenticLLMCaller: LLMIntergration;
 }) => {
@@ -111,9 +78,18 @@ export const createMcpAgent = <TName extends string, TOutput extends z.AnyZodObj
    * Creates the Arvo contract that defines the agent's interface.
    * The contract specifies accepted input types and expected output formats.
    */
-  const contract = createSimpleArvoContract({
+  const handlerContract = createSimpleArvoContract({
     uri: `#/amas/handler/agent/mcp/${name.replaceAll('.', '/')}`,
-    description: description,
+    description: alias
+      ? cleanString(`
+      # My Introduction:
+      I am a human user facing agent, known to humans as "@${alias}"
+      meaning I can be called by the human user directly when they mention
+      @${alias} in the message.
+      # My description:
+      ${description}
+    `)
+      : description,
     type: `agent.mcp.${name}` as `agent.mcp.${TName}`,
     versions: {
       '1.0.0': {
@@ -151,10 +127,10 @@ export const createMcpAgent = <TName extends string, TOutput extends z.AnyZodObj
    */
   const handlerFactory: EventHandlerFactory = () =>
     createArvoEventHandler({
-      contract: contract,
+      contract: handlerContract,
       executionunits: 0,
       handler: {
-        '1.0.0': async ({ event, span }) => {
+        '1.0.0': async ({ event, span, contract }) => {
           /**
            * Manually crafted parent OpenTelemetry headers to ensure proper span linkage
            * and prevent potential span corruption in distributed tracing.
@@ -177,6 +153,11 @@ export const createMcpAgent = <TName extends string, TOutput extends z.AnyZodObj
             params: Omit<LLMIntegrationParam, 'span' | 'systemPrompt'> & {
               systemPrompt: string | null;
               description: string | null;
+              introduction: {
+                alias: string | null;
+                handlerSource: string;
+                agentName: string;
+              };
             },
           ): Promise<LLMIntegrationOutput> => {
             // This function automatically inherits from the parent span
@@ -191,11 +172,18 @@ export const createMcpAgent = <TName extends string, TOutput extends z.AnyZodObj
                 try {
                   const finalSystemPrompt =
                     [
-                      ...(params.description ? [`# Your Agentic Description\n${params.description}`] : []),
-                      ...(params.systemPrompt ? [`# Instructions:\n${params.systemPrompt}`] : []),
+                      cleanString(`
+                        # Your Identity
+                        You are an AI agent with the following identities:
+                        ${params.introduction.alias ? `- When interacting with humans, you are known as "@${params.introduction.alias}"` : ''} 
+                        - Your system identifier is "${params.introduction.handlerSource}"
+                        - Other AI agents know you as "${params.introduction.agentName}"
+                      `),
+                      ...(params.description ? [`# Your Purpose and Capabilities\n${params.description}`] : []),
+                      ...(params.systemPrompt ? [`# Your Instructions\n${params.systemPrompt}`] : []),
                       ...(params.outputFormat
                         ? [
-                            `# JSON Response Requirements:\n${jsonUsageIntentPrompt(zodToJsonSchema(params.outputFormat))}`,
+                            `# Required Response Format\nYou must respond in the following JSON format:\n${jsonUsageIntentPrompt(zodToJsonSchema(params.outputFormat))}`,
                           ]
                         : []),
                     ]
@@ -299,11 +287,15 @@ export const createMcpAgent = <TName extends string, TOutput extends z.AnyZodObj
                 systemPrompt:
                   systemPrompt?.({
                     messages,
-                    services: {} as never,
                     toolDefinitions: mcpClientToolDefinitions,
                     type: i === 0 ? 'init' : 'tool_results',
                   }) ?? null,
                 outputFormat: outputFormat ?? null,
+                introduction: {
+                  alias: alias ?? null,
+                  handlerSource: contract.accepts.type,
+                  agentName: contract.accepts.type.replaceAll('.', '_'),
+                },
               });
 
               /**
@@ -320,7 +312,7 @@ export const createMcpAgent = <TName extends string, TOutput extends z.AnyZodObj
 
                 const output = {
                   // biome-ignore lint/style/noNonNullAssertion: Typescript compiler is being silly here. This can not be undefined
-                  type: contract.version('1.0.0').emitList[0]!.type as `evt.agent.mcp.${TName}.success`,
+                  type: contract.emitList[0]!.type as `evt.agent.mcp.${TName}.success`,
                   data: {
                     messages,
                     output: typeof response === 'string' ? { response } : response,
@@ -395,5 +387,5 @@ export const createMcpAgent = <TName extends string, TOutput extends z.AnyZodObj
       },
     });
 
-  return { contract, handlerFactory };
+  return { contract: handlerContract, handlerFactory, alias };
 };

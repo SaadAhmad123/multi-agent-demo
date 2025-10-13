@@ -1,4 +1,4 @@
-import { humanReviewContract } from '@repo/agentic-handlers';
+import { humanReviewContract, toolUseApprovalContract } from '@repo/agentic-handlers';
 import {
   type ArvoEvent,
   ArvoOpenTelemetry,
@@ -31,6 +31,13 @@ export type RequestProcessorOutput =
       data: string;
       agentName: string;
       event: InferVersionedArvoContract<VersionedArvoContract<typeof humanReviewContract, '1.0.0'>>['accepts'];
+    }
+  | {
+      type: '_HUMAN_TOOL_USE_APPROVAL_REQUESTED';
+      data: string;
+      toolRequestedForApproval: string[];
+      agentName: string;
+      event: InferVersionedArvoContract<VersionedArvoContract<typeof toolUseApprovalContract, '1.0.0'>>['accepts'];
     };
 
 export type RequestProcessorInput = {
@@ -42,7 +49,17 @@ export type RequestProcessorInput = {
       isHumanReview: true;
       humanReviewRequestEvent: ArvoEvent;
     }
-);
+) &
+  (
+    | {
+        isToolApproval: false;
+      }
+    | {
+        isToolApproval: true;
+        toolApprovalMap: Record<string, boolean>;
+        toolApprovalRequestEvent: ArvoEvent;
+      }
+  );
 
 /**
  * Processes user input messages, handling both regular queries and human review responses.
@@ -63,7 +80,7 @@ export type RequestProcessorInput = {
  */
 export const requestProcessor = async (param: RequestProcessorInput) =>
   await ArvoOpenTelemetry.getInstance().startActiveSpan({
-    name: param.isHumanReview ? 'User Review' : 'User Input',
+    name: param.isHumanReview ? 'User Review Response' : param.isToolApproval ? 'User Tool Approval' : 'User Input',
     disableSpanManagement: false,
     context: param.isHumanReview
       ? {
@@ -73,24 +90,32 @@ export const requestProcessor = async (param: RequestProcessorInput) =>
             tracestate: param.humanReviewRequestEvent.tracestate,
           },
         }
-      : undefined,
+      : param.isToolApproval
+        ? {
+            inheritFrom: 'TRACE_HEADERS',
+            traceHeaders: {
+              traceparent: param.toolApprovalRequestEvent.traceparent,
+              tracestate: param.toolApprovalRequestEvent.tracestate,
+            },
+          }
+        : undefined,
     fn: async (span): Promise<RequestProcessorOutput> => {
       try {
         let _message = param.message;
         let agent: ReturnType<typeof parseAgentFromMessage>['agent'] = null;
         let additionalSystemPrompt: string | null = null;
-        if (!param.isHumanReview) {
+        if (!param.isHumanReview && !param.isToolApproval) {
           const agentParsedMessage = parseAgentFromMessage(_message);
           _message = agentParsedMessage.cleanMessage;
           agent = agentParsedMessage.agent;
           additionalSystemPrompt = agentParsedMessage.systemPrompt;
-        }
 
-        if (!param.isHumanReview && agent === null) {
-          return {
-            type: '_INFO',
-            data: 'Please specify an agent to process your query. Please type /agents to list which agents are availble',
-          };
+          if (!agent) {
+            return {
+              type: '_INFO',
+              data: 'Please specify an agent to process your query. Please type /agents to list which agents are availble',
+            };
+          }
         }
 
         const event = (() => {
@@ -104,6 +129,22 @@ export const requestProcessor = async (param: RequestProcessorInput) =>
               data: {
                 toolUseId$$: param.humanReviewRequestEvent.data.toolUseId$$,
                 response: _message.trim() || 'No reponse. Can you not process and abort the process',
+              },
+            });
+          }
+          if (param.isToolApproval) {
+            return createArvoEventFactory(toolUseApprovalContract.version('1.0.0')).emits({
+              type: 'evt.tool.approval.success',
+              to: param.toolApprovalRequestEvent.source,
+              subject: param.toolApprovalRequestEvent.subject,
+              parentid: param.toolApprovalRequestEvent.id,
+              source: 'test.test.test',
+              data: {
+                toolUseId$$: param.toolApprovalRequestEvent.data.toolUseId$$,
+                approvals: Object.entries(param.toolApprovalMap).map(([key, value]) => ({
+                  tool: key,
+                  value: value,
+                })),
               },
             });
           }
@@ -127,7 +168,7 @@ export const requestProcessor = async (param: RequestProcessorInput) =>
           };
         }
 
-        if (response.type === 'com.human.review') {
+        if (response.type === humanReviewContract.version('1.0.0').accepts.type) {
           const hre = response as unknown as InferVersionedArvoContract<
             VersionedArvoContract<typeof humanReviewContract, '1.0.0'>
           >['accepts'];
@@ -136,6 +177,19 @@ export const requestProcessor = async (param: RequestProcessorInput) =>
             agentName: agent?.name ?? '',
             data: hre.data.prompt,
             event: hre,
+          };
+        }
+
+        if (response.type === toolUseApprovalContract.version('1.0.0').accepts.type) {
+          const tuare = response as unknown as InferVersionedArvoContract<
+            VersionedArvoContract<typeof toolUseApprovalContract, '1.0.0'>
+          >['accepts'];
+          return {
+            type: '_HUMAN_TOOL_USE_APPROVAL_REQUESTED',
+            agentName: agent?.name ?? '',
+            data: tuare.data.message,
+            toolRequestedForApproval: tuare.data.tools,
+            event: tuare,
           };
         }
 

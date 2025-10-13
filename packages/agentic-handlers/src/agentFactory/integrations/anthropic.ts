@@ -1,7 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { SemanticConventions as OpenInferenceSemanticConventions } from '@arizeai/openinference-semantic-conventions';
-import type { LLMIntegrationOutput, LLMIntergration } from './types.js';
-import type { AgenticToolDefinition } from '../types.js';
+import type { AgenticToolDefinition, LLMIntegrationOutput, LLMIntergration } from '../types.js';
 
 /**
  * Anthropic Claude integration for agentic LLM calls within Arvo orchestrators.
@@ -30,7 +29,7 @@ export const anthropicLLMCaller: LLMIntergration = async ({
   const llmModel: Anthropic.Messages.Model = 'claude-sonnet-4-0';
   const llmInvocationParams = {
     temperature: 0.5,
-    maxTokens: 1024,
+    maxTokens: 4096,
   };
 
   // Configure OpenTelemetry attributes for observability

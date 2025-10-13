@@ -1,16 +1,16 @@
 import { cleanString } from 'arvo-core';
 import { createAgenticResumable } from '../agentFactory/createAgenticResumable.js';
 import { anthropicLLMCaller } from '../agentFactory/integrations/anthropic.js';
-import type { CallAgenticLLMOutput } from '../agentFactory/types.js';
-import { humanReviewContract, humanReviewServiceDomain } from './human.review.js';
+import { humanReviewServiceDomain } from '../agentFactory/humanReview.contract.js';
 import { calculatorAgent } from './agent.calculator.js';
 import { astroDocsMcpAgent } from './agent.mcp.astro.docs.js';
 import { findDomainMcpAgent } from './agent.mcp.findadomain.js';
 import { webInfoAgent } from './agent.webinfo.js';
 import { githubMcpAgent } from './agent.mcp.github.js';
-import { zapierMcpAgent } from './agent.zapier.js';
+import { zapierMcpAgent } from './agent.mcp.zapier.js';
 
 export const operatorAgent = createAgenticResumable({
+  alias: 'operator',
   name: 'operator',
   maxToolInteractions: 100,
   description: cleanString(`
@@ -85,7 +85,6 @@ export const operatorAgent = createAgenticResumable({
     </critical_rules>
   `),
   services: {
-    humanReview: humanReviewContract.version('1.0.0'),
     calculatorAgent: calculatorAgent.contract.version('1.0.0'),
     astroDocsMcpAgent: astroDocsMcpAgent.contract.version('1.0.0'),
     findDomainMcpAgent: findDomainMcpAgent.contract.version('1.0.0'),
@@ -93,10 +92,14 @@ export const operatorAgent = createAgenticResumable({
     githubMcpAgent: githubMcpAgent.contract.version('1.0.0'),
     zapierMcpAgent: zapierMcpAgent.contract.version('1.0.0'),
   },
-  serviceDomains: {
-    'com.human.review': [humanReviewServiceDomain],
+  humanReview: {
+    require: true,
+    domain: [humanReviewServiceDomain],
   },
-  agenticLLMCaller: async (param) => {
-    return (await anthropicLLMCaller(param)) as CallAgenticLLMOutput<typeof param.services>;
+  toolUseApproval: {
+    require: true,
+    domain: [humanReviewServiceDomain],
+    tools: [zapierMcpAgent.contract.version('1.0.0').accepts.type],
   },
+  agenticLLMCaller: anthropicLLMCaller,
 });

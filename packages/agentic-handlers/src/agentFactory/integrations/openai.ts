@@ -1,9 +1,13 @@
 import OpenAI from 'openai';
-import type { AgenticToolResultMessageContent, CallAgenticLLMParam } from '../types.js';
+import type {
+  AgenticToolResultMessageContent,
+  LLMIntegrationParam,
+  LLMIntegrationOutput,
+  LLMIntergration,
+} from '../types.js';
 import { SemanticConventions as OpenInferenceSemanticConventions } from '@arizeai/openinference-semantic-conventions';
 import type { ChatModel } from 'openai/resources/shared.mjs';
 import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/index.mjs';
-import type { LLMIntegrationOutput, LLMIntergration } from './types.js';
 
 /**
  * Converts Arvo agentic messages to OpenAI-compatible chat completion format.
@@ -19,7 +23,7 @@ import type { LLMIntegrationOutput, LLMIntergration } from './types.js';
  * @returns Array of OpenAI-compatible chat completion messages
  */
 const formatMessagesForOpenAI = (
-  messages: CallAgenticLLMParam['messages'],
+  messages: LLMIntegrationParam['messages'],
   toolNameToFormattedMap: Record<string, string>,
   systemPrompt?: string,
 ): ChatCompletionMessageParam[] => {
@@ -133,7 +137,7 @@ export const openaiLLMCaller: LLMIntergration = async ({
   const llmModel: ChatModel = 'gpt-4o-mini';
   const llmInvocationParams = {
     temperature: 0.5,
-    maxTokens: 1024,
+    maxTokens: 4096,
   };
 
   // Configure OpenTelemetry attributes for observability

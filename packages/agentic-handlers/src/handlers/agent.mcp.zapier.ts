@@ -4,6 +4,7 @@ import { MCPClient } from '../agentFactory/integrations/MCPClient.js';
 import { cleanString } from 'arvo-core';
 
 export const zapierMcpAgent = createMcpAgent({
+  alias: 'troy',
   name: 'zapier',
   description: cleanString(`
     A versatile integration agent that connects to Google Docs and WhatsApp and other productivity 
