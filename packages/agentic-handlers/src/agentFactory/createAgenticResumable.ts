@@ -274,6 +274,7 @@ export const createAgenticResumable = <
           };
 
           span.setAttribute(OpenInferenceSemanticConventions.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.AGENT);
+
           // Handle service errors by throwing error (which will result in the system error event)
           if (
             service?.type &&
@@ -287,11 +288,6 @@ export const createAgenticResumable = <
 
           /**
            * Converts Arvo service contracts to LLM-compatible tool definitions.
-           *
-           * Transforms contract schemas by:
-           * - Extracting JSON schema representations from Arvo contracts
-           * - Removing Arvo-specific coordination fields (toolUseId$$, parentSubject$$)
-           * - Preserving contract descriptions and input validation schemas
            */
           const toolDef: AgenticToolDefinition[] = [];
           const toolsWhichRequireApproval: string[] = [];
@@ -315,6 +311,7 @@ export const createAgenticResumable = <
                       contracts.self.accepts.type,
                       item.accepts.type.replaceAll('.', '_'),
                       span,
+                      parentSpanOtelHeaders,
                     )
                   )?.value
                 ) {
@@ -601,6 +598,7 @@ export const createAgenticResumable = <
                     comments: item.comments,
                   },
                   span,
+                  parentSpanOtelHeaders,
                 );
               }),
             ).catch((e) => exceptionToSpan(e as Error, span));

@@ -1,4 +1,4 @@
-import type { InferVersionedArvoContract } from 'arvo-core';
+import type { InferVersionedArvoContract, OpenTelemetryHeaders } from 'arvo-core';
 import type { Span } from '@opentelemetry/api';
 import type { VersionedArvoContract } from 'arvo-core';
 import type { z } from 'zod';
@@ -197,7 +197,8 @@ export interface IToolUseApprovalMemory {
       >['emits']['evt.tool.approval.success']['data']['approvals'][number],
       'comments' | 'value'
     >,
-    span: Span,
+    parentSpan: Span,
+    parentOtelHeaders: OpenTelemetryHeaders,
   ): Promise<void>;
 
   /**
@@ -207,7 +208,12 @@ export interface IToolUseApprovalMemory {
    * @param toolName - Name of the tool to check approval for
    * @returns Promise resolving to the approval status
    */
-  get(source: string, toolName: string, span: Span): Promise<{ value: boolean; comment?: string }>;
+  get(
+    source: string,
+    toolName: string,
+    parentSpan: Span,
+    parentOtelHeaders: OpenTelemetryHeaders,
+  ): Promise<{ value: boolean; comment?: string }>;
 }
 
 /**
@@ -336,7 +342,7 @@ export interface IAgenticMCPClient {
    * @throws {Error} If connection to MCP server fails and you want to emit a system error event
    * @throws {ViolationError} If connection to MCP server fails and you want to throw an error you want to customer handle
    */
-  connect: (parentOtelSpan: Span) => Promise<void>;
+  connect: (parentOtelSpan: Span, parentOtelHeaders: OpenTelemetryHeaders) => Promise<void>;
 
   /**
    * Invokes a specific tool through the MCP protocol.
@@ -348,6 +354,7 @@ export interface IAgenticMCPClient {
   invokeTool: (
     param: { toolName: string; toolArguments?: Record<string, unknown> | null },
     parentOtelSpan: Span,
+    parentOtelHeaders: OpenTelemetryHeaders,
   ) => Promise<string>;
 
   /**
@@ -357,7 +364,7 @@ export interface IAgenticMCPClient {
    * @param parentOtelSpan - OpenTelemetry span for tracing the disconnection operation
    * @returns Promise that resolves when disconnection is complete
    */
-  disconnect: (parentOtelSpan: Span) => Promise<void>;
+  disconnect: (parentOtelSpan: Span, parentOtelHeaders: OpenTelemetryHeaders) => Promise<void>;
 
   /**
    * Retrieves all available tool definitions from the MCP server.
@@ -365,5 +372,8 @@ export interface IAgenticMCPClient {
    *
    * @param parentOtelSpan - OpenTelemetry span for tracing the discovery operation
    */
-  getToolDefinitions: (parentOtelSpan: Span) => Promise<AgenticToolDefinition[]>;
+  getToolDefinitions: (
+    parentOtelSpan: Span,
+    parentOtelHeaders: OpenTelemetryHeaders,
+  ) => Promise<AgenticToolDefinition[]>;
 }

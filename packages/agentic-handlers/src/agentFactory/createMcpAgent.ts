@@ -221,10 +221,10 @@ export const createMcpAgent = <TName extends string, TOutput extends z.AnyZodObj
           };
 
           // Establish MCP connection before processing
-          await mcpClient?.connect(span);
+          await mcpClient?.connect(span, parentSpanOtelHeaders);
 
           // Retrieve available tool definitions from the MCP server
-          const mcpClientToolDefinitions = (await mcpClient?.getToolDefinitions(span)) ?? [];
+          const mcpClientToolDefinitions = (await mcpClient?.getToolDefinitions(span, parentSpanOtelHeaders)) ?? [];
 
           try {
             /**
@@ -354,6 +354,7 @@ export const createMcpAgent = <TName extends string, TOutput extends z.AnyZodObj
                             toolArguments: data as Record<string, unknown>,
                           },
                           span,
+                          parentSpanOtelHeaders,
                         ),
                       };
                     })(),
@@ -381,7 +382,7 @@ export const createMcpAgent = <TName extends string, TOutput extends z.AnyZodObj
             throw e as Error;
           } finally {
             // Always disconnect from MCP server, even if an error occurred
-            await mcpClient?.disconnect(span);
+            await mcpClient?.disconnect(span, parentSpanOtelHeaders);
           }
         },
       },
