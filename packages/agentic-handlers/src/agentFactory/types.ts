@@ -8,7 +8,7 @@ import type {
   AgenticToolCallMessageContentSchema,
   AgenticToolResultMessageContentSchema,
 } from './schemas.js';
-import type { toolUseApprovalContract } from './toolUseApproval.contract.js';
+import type { toolUseApprovalContract } from './contracts/toolUseApproval.contract.js';
 
 export type NonEmptyArray<T> = [T, ...T[]];
 
@@ -182,38 +182,36 @@ export type LLMIntergration = (param: LLMIntegrationParam) => Promise<LLMIntegra
  */
 export interface IToolUseApprovalMemory {
   /**
-   * Stores an approval decision for a specific tool and source combination.
-   *
-   * @param source - Identifier of the agent which has secured the approval
-   * @param toolName - Name of the tool being approved or denied
-   * @returns Promise that resolves when the approval is stored
+   * Stores an approval decision for a tools for a specific source.
    */
-  set(
+  setBatched(
     source: string,
-    toolName: string,
-    approval: Pick<
-      InferVersionedArvoContract<
-        VersionedArvoContract<typeof toolUseApprovalContract, '1.0.0'>
-      >['emits']['evt.tool.approval.success']['data']['approvals'][number],
-      'comments' | 'value'
+    approvals: Record<
+      string,
+      Pick<
+        InferVersionedArvoContract<
+          VersionedArvoContract<typeof toolUseApprovalContract, '1.0.0'>
+        >['emits']['evt.tool.approval.success']['data']['approvals'][number],
+        'comments' | 'value'
+      >
     >,
-    parentSpan: Span,
-    parentOtelHeaders: OpenTelemetryHeaders,
+    otel: {
+      parentSpan: Span;
+      parentOtelHeaders: OpenTelemetryHeaders;
+    },
   ): Promise<void>;
 
   /**
-   * Retrieves the current approval status for a specific tool and source combination.
-   *
-   * @param source - Identifier of the agent which wants to  check if it has secured the approval
-   * @param toolName - Name of the tool to check approval for
-   * @returns Promise resolving to the approval status
+   * Retrieves the current approval status for a set of tools for a specific source.
    */
-  get(
+  getBatched(
     source: string,
-    toolName: string,
-    parentSpan: Span,
-    parentOtelHeaders: OpenTelemetryHeaders,
-  ): Promise<{ value: boolean; comment?: string }>;
+    toolName: string[],
+    otel: {
+      parentSpan: Span;
+      parentOtelHeaders: OpenTelemetryHeaders;
+    },
+  ): Promise<Record<string, { value: boolean; comment?: string }>>;
 }
 
 /**
@@ -297,7 +295,7 @@ export type CreateAgenticResumableParams<TName extends string, TOutput extends z
   maxToolInteractions?: number;
 
   /**
-   * Configuration for requiring human approval before the agent can use specific tools.
+   * Configuration for requiring DIRECT human user approval before the agent can use specific tools.
    * Tools marked with [[REQUIRE APPROVAL]] in their description will trigger an approval
    * request before execution.
    */
@@ -317,9 +315,9 @@ export type CreateAgenticResumableParams<TName extends string, TOutput extends z
   };
 
   /**
-   * Configuration for requesting human review when the agent needs guidance or clarification.
+   * Configuration for interacting DIRECTLY with human user for reviews and clarification when the agent needs guidance or clarification.
    */
-  humanReview?: {
+  humanInteraction?: {
     require: true;
 
     /**

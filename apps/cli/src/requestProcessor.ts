@@ -1,5 +1,6 @@
-import { humanReviewContract, toolUseApprovalContract } from '@repo/agentic-handlers';
+import { humanInteractionContract, toolUseApprovalContract } from '@repo/agentic-handlers';
 import {
+  type ArvoErrorType,
   type ArvoEvent,
   ArvoOpenTelemetry,
   createArvoEventFactory,
@@ -11,6 +12,10 @@ import type { IMachineMemory } from 'arvo-event-handler';
 import { parseAgentFromMessage } from './agentsMap.js';
 import { SpanStatusCode } from '@opentelemetry/api';
 import { execute } from './handlerExecutor.js';
+
+const matchSysError = (input: string) => {
+  return input.startsWith('sys.') && input.endsWith('.error');
+};
 
 export type RequestProcessorOutput =
   | {
@@ -30,7 +35,7 @@ export type RequestProcessorOutput =
       type: '_HUMAN_REVIEW_REQUESTED';
       data: string;
       agentName: string;
-      event: InferVersionedArvoContract<VersionedArvoContract<typeof humanReviewContract, '1.0.0'>>['accepts'];
+      event: InferVersionedArvoContract<VersionedArvoContract<typeof humanInteractionContract, '1.0.0'>>['accepts'];
     }
   | {
       type: '_HUMAN_TOOL_USE_APPROVAL_REQUESTED';
@@ -120,8 +125,8 @@ export const requestProcessor = async (param: RequestProcessorInput) =>
 
         const event = (() => {
           if (param.isHumanReview) {
-            return createArvoEventFactory(humanReviewContract.version('1.0.0')).emits({
-              type: 'evt.human.review.success',
+            return createArvoEventFactory(humanInteractionContract.version('1.0.0')).emits({
+              type: 'evt.human.interaction.success',
               to: param.humanReviewRequestEvent.source,
               subject: param.humanReviewRequestEvent.subject,
               parentid: param.humanReviewRequestEvent.id,
@@ -168,9 +173,9 @@ export const requestProcessor = async (param: RequestProcessorInput) =>
           };
         }
 
-        if (response.type === humanReviewContract.version('1.0.0').accepts.type) {
+        if (response.type === humanInteractionContract.version('1.0.0').accepts.type) {
           const hre = response as unknown as InferVersionedArvoContract<
-            VersionedArvoContract<typeof humanReviewContract, '1.0.0'>
+            VersionedArvoContract<typeof humanInteractionContract, '1.0.0'>
           >['accepts'];
           return {
             type: '_HUMAN_REVIEW_REQUESTED',
@@ -198,6 +203,15 @@ export const requestProcessor = async (param: RequestProcessorInput) =>
             type: '_END_TURN',
             agentName: agent?.name ?? '',
             data: response.data.output.response,
+          };
+        }
+
+        if (matchSysError(response.type)) {
+          const errorData = response.data as ArvoErrorType;
+          return {
+            type: '_END_TURN',
+            agentName: agent?.name ?? '',
+            data: `[Error Occurred] ${errorData.errorMessage}`,
           };
         }
 

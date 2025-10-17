@@ -18,26 +18,25 @@ import { z } from 'zod';
 export const calculatorContract = createArvoContract({
   uri: '#/amas/calculator/execute',
   type: 'com.calculator.execute',
-  description: 'Executes mathematical expressions safely using a restricted evaluation environment.',
+  description:
+    'Evaluates mathematical expressions in a secure sandboxed environment. Supports arithmetic operations, common mathematical functions (trigonometric, logarithmic, exponential, rounding), and constants (PI, E). Does not support: symbolic algebra, equation solving, calculus operations, matrix operations, statistical analysis, or custom function definitions.',
   versions: {
     '1.0.0': {
       accepts: z.object({
         expression: z
           .string()
           .describe(
-            'Mathematical expression to evaluate. Supports: arithmetic operators (+, -, *, /, %, **), ' +
-              'Math functions (sqrt, pow, sin, cos, tan, log, exp, abs, round, min, max, floor, ceil), ' +
-              'and constants (PI, E). Examples: "2 + 2", "sqrt(16) * 5", "PI * pow(2, 3)", "sin(PI/2)"',
+            'Mathematical expression to evaluate. Supports arithmetic operators (+, -, *, /, %, **), ' +
+              'Math functions (sqrt, pow, sin, cos, tan, asin, acos, atan, log, exp, abs, round, min, max, floor, ceil), ' +
+              'and constants (PI, E). Examples: "2 + 2", "sqrt(16) * 5", "PI * pow(2, 3)", "sin(PI/2)", "(45 * 8) + (62 * 3)"',
           ),
-        // This is a usefull field when working with AI Agents for tool call correlation
-        toolUseId$$: z.string().optional(),
+        toolUseId$$: z.string().optional().describe('Optional correlation identifier for tracking this operation'),
       }),
       emits: {
         'evt.calculator.execute.success': z.object({
-          result: z.number().describe('Computed result of the mathematical expression as a finite number.'),
-          expression: z.string().describe('Original expression that was evaluated, returned for verification.'),
-          // This is a usefull field when working with AI Agents for tool call correlation
-          toolUseId$$: z.string().optional(),
+          result: z.number().describe('Numeric result of the evaluated expression'),
+          expression: z.string().describe('Original expression that was evaluated'),
+          toolUseId$$: z.string().optional().describe('Correlation identifier if provided in the request'),
         }),
       },
     },

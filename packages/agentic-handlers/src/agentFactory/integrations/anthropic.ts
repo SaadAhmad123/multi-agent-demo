@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { SemanticConventions as OpenInferenceSemanticConventions } from '@arizeai/openinference-semantic-conventions';
 import type { AgenticToolDefinition, LLMIntegrationOutput, LLMIntergration } from '../types.js';
+import { createAgentToolNameStringFormatter } from '../agent.utils.js';
 
 /**
  * Anthropic Claude integration for agentic LLM calls within Arvo orchestrators.
@@ -45,14 +46,9 @@ export const anthropicLLMCaller: LLMIntergration = async ({
 
   // Convert tool names to Anthropic-compatible format
   const toolDef: AgenticToolDefinition[] = [];
-  const toolNameToFormattedMap: Record<string, string> = {};
-  const formattedToToolNameMap: Record<string, string> = {};
+  const toolNameFormatter = createAgentToolNameStringFormatter();
   for (const item of toolDefinitions) {
-    const formatted = item.name.replaceAll('.', '_');
-    toolNameToFormattedMap[item.name] = formatted;
-    formattedToToolNameMap[formatted] = item.name;
-    // biome-ignore lint/style/noNonNullAssertion: Typescript compiler is being silly here. This can never be undefined
-    toolDef.push({ ...item, name: toolNameToFormattedMap[item.name]! });
+    toolDef.push({ ...item, name: toolNameFormatter.format(item.name) });
   }
 
   /**
@@ -71,7 +67,7 @@ export const anthropicLLMCaller: LLMIntergration = async ({
       if (c.type === 'tool_use') {
         return {
           ...c,
-          name: toolNameToFormattedMap[c.name],
+          name: toolNameFormatter.format(c.name),
         };
       }
       return c;
@@ -104,8 +100,7 @@ export const anthropicLLMCaller: LLMIntergration = async ({
   if (message.stop_reason === 'tool_use') {
     for (const item of message.content) {
       if (item.type === 'tool_use') {
-        // biome-ignore lint/style/noNonNullAssertion: Typescript compiler is being silly here. This can never be undefined
-        const actualType = formattedToToolNameMap[item.name]!; // The system understands the original tool name no the AI tool name
+        const actualType = toolNameFormatter.reverse(item.name) ?? item.name; // The system understands the original tool name no the AI tool name
         toolRequests.push({
           type: actualType,
           id: item.id,

@@ -1,5 +1,5 @@
 {
-  "name": "cli",
+  "name": "@apps/cli",
   "version": "1.0.0",
   "description": "The CLI version of the application",
   "type": "module",

@@ -8,6 +8,8 @@ import type {
 import { SemanticConventions as OpenInferenceSemanticConventions } from '@arizeai/openinference-semantic-conventions';
 import type { ChatModel } from 'openai/resources/shared.mjs';
 import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/index.mjs';
+import { createAgentToolNameStringFormatter } from '../agent.utils.js';
+import type { StringFormatter } from '../utils.js';
 
 /**
  * Converts Arvo agentic messages to OpenAI-compatible chat completion format.
@@ -24,7 +26,7 @@ import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/reso
  */
 const formatMessagesForOpenAI = (
   messages: LLMIntegrationParam['messages'],
-  toolNameToFormattedMap: Record<string, string>,
+  toolNameFormatter: StringFormatter,
   systemPrompt?: string,
 ): ChatCompletionMessageParam[] => {
   const formatedMessages: ChatCompletionMessageParam[] = [];
@@ -86,8 +88,7 @@ const formatMessagesForOpenAI = (
               type: 'function',
               id: item.content.id,
               function: {
-                // biome-ignore lint/style/noNonNullAssertion: Typescript compiler is being silly here. This can not be undefined
-                name: toolNameToFormattedMap[item.content.name]!,
+                name: toolNameFormatter.format(item.content.name),
                 arguments: JSON.stringify(item.content.input),
               },
             },
@@ -153,17 +154,12 @@ export const openaiLLMCaller: LLMIntergration = async ({
 
   // Convert tool definitions to OpenAI function format
   const toolDef: ChatCompletionTool[] = [];
-  const toolNameToFormattedMap: Record<string, string> = {};
-  const formattedToToolNameMap: Record<string, string> = {};
+  const toolNameFormatter = createAgentToolNameStringFormatter();
   for (const item of toolDefinitions) {
-    const formatted = item.name.replaceAll('.', '_');
-    toolNameToFormattedMap[item.name] = formatted;
-    formattedToToolNameMap[formatted] = item.name;
     toolDef.push({
       type: 'function',
       function: {
-        // biome-ignore lint/style/noNonNullAssertion: Typescript compiler is being silly here. This can not be undefined
-        name: toolNameToFormattedMap[item.name]!,
+        name: toolNameFormatter.format(item.name),
         description: item.description,
         parameters: item.input_schema,
       },
@@ -171,7 +167,7 @@ export const openaiLLMCaller: LLMIntergration = async ({
   }
 
   // Format conversation history for OpenAI's specific requirements
-  const formattedMessages = formatMessagesForOpenAI(messages, toolNameToFormattedMap, systemPrompt ?? undefined);
+  const formattedMessages = formatMessagesForOpenAI(messages, toolNameFormatter, systemPrompt ?? undefined);
 
   const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
@@ -199,8 +195,7 @@ export const openaiLLMCaller: LLMIntergration = async ({
   ) {
     for (const item of message.choices[0]?.message.tool_calls ?? []) {
       if (item.type === 'function') {
-        // biome-ignore lint/style/noNonNullAssertion: Typescript compiler is being silly here. This can not be undefined
-        const actualType = formattedToToolNameMap[item.function.name]!;
+        const actualType = toolNameFormatter.reverse(item.function.name) ?? item.function.name;
         toolRequests.push({
           type: actualType,
           id: item.id,

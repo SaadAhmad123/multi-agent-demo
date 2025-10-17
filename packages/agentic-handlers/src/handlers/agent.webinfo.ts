@@ -1,10 +1,10 @@
-import { createAgenticResumable } from '../agentFactory/createAgenticResumable.js';
+import { createAgenticResumable } from '../agentFactory/createAgenticResumable/index.js';
 import { anthropicLLMCaller } from '../agentFactory/integrations/anthropic.js';
 import { cleanString } from 'arvo-core';
 import { astroDocsMcpAgent } from './agent.mcp.astro.docs.js';
 import { findDomainMcpAgent } from './agent.mcp.findadomain.js';
 import { fetchWebMcpAgent } from './agent.mcp.fetch.web.js';
-import { humanReviewServiceDomain } from '../agentFactory/humanReview.contract.js';
+import { humanInteractionServiceDomain } from '../agentFactory/contracts/humanInteraction.contract.js';
 
 /**
  * Web Information Agent implementation that demonstrates inter-agent
@@ -61,9 +61,9 @@ export const webInfoAgent = createAgenticResumable({
     findDomainAgent: findDomainMcpAgent.contract.version('1.0.0'),
     fetchWebAgent: fetchWebMcpAgent.contract.version('1.0.0'),
   },
-  humanReview: {
+  humanInteraction: {
     require: true,
-    domain: [humanReviewServiceDomain],
+    domain: [humanInteractionServiceDomain],
   },
   agenticLLMCaller: anthropicLLMCaller,
 });

@@ -1,31 +1,12 @@
 // This code is designed to be copy and pasted into you code
 import { z } from 'zod';
-import {
-  ArvoOpenTelemetry,
-  cleanString,
-  createSimpleArvoContract,
-  exceptionToSpan,
-  type OpenTelemetryHeaders,
-} from 'arvo-core';
+import { createSimpleArvoContract, type OpenTelemetryHeaders } from 'arvo-core';
 import { AgenticMessageContentSchema } from './schemas.js';
 import { createArvoEventHandler, type EventHandlerFactory } from 'arvo-event-handler';
-import { jsonUsageIntentPrompt, toolInteractionLimitPrompt } from './helpers.prompt.js';
-import { zodToJsonSchema } from 'zod-to-json-schema';
-import { openInferenceSpanInitAttributesSetter, openInferenceSpanOutputAttributesSetter } from './helpers.otel.js';
-import { SpanStatusCode } from '@opentelemetry/api';
-import type {
-  CreateAgenticResumableParams,
-  IAgenticMCPClient,
-  LLMIntergration,
-  LLMIntegrationParam,
-  LLMIntegrationOutput,
-} from './types.js';
-
-/**
- * Default output format for agents that don't specify a custom output schema.
- * Provides a simple string response format for basic conversational agents.
- */
-const DEFAULT_AGENT_OUTPUT_FORMAT = z.object({ response: z.string() });
+import { toolInteractionLimitPrompt } from './helpers.prompt.js';
+import {} from './helpers.otel.js';
+import type { CreateAgenticResumableParams, IAgenticMCPClient, LLMIntergration, LLMIntegrationParam } from './types.js';
+import { buildAgentContractDescription, DEFAULT_AGENT_OUTPUT_FORMAT, otelAgenticLLMCaller } from './agent.utils.js';
 
 /**
  * Creates an MCP-enabled agent that can interact with tools via the Model Context Protocol.
@@ -60,7 +41,10 @@ const DEFAULT_AGENT_OUTPUT_FORMAT = z.object({ response: z.string() });
  * - Return System Error Event If MCP client connection fails and the MCP client emit a normal Error (not a ViolationError)
  * - Return System Error Evetn If maximum tool invocation cycles (maxToolInteractions or 5) is exceeded
  */
-export const createMcpAgent = <TName extends string, TOutput extends z.AnyZodObject>({
+export const createMcpAgent = <
+  TName extends string,
+  TOutput extends z.AnyZodObject = typeof DEFAULT_AGENT_OUTPUT_FORMAT,
+>({
   alias,
   name,
   outputFormat,
@@ -80,17 +64,12 @@ export const createMcpAgent = <TName extends string, TOutput extends z.AnyZodObj
    */
   const handlerContract = createSimpleArvoContract({
     uri: `#/amas/handler/agent/mcp/${name.replaceAll('.', '/')}`,
-    description: alias
-      ? cleanString(`
-      # My Introduction:
-      I am a human user facing agent, known to humans as "@${alias}"
-      meaning I can be called by the human user directly when they mention
-      @${alias} in the message.
-      # My description:
-      ${description}
-    `)
-      : description,
     type: `agent.mcp.${name}` as `agent.mcp.${TName}`,
+    description: buildAgentContractDescription({
+      alias: alias,
+      description: description,
+      contractName: `com.agent.mcp.${name}`,
+    }),
     versions: {
       '1.0.0': {
         accepts: z.object({
@@ -125,7 +104,11 @@ export const createMcpAgent = <TName extends string, TOutput extends z.AnyZodObj
    *
    * @returns Configured Arvo event handler instance
    */
-  const handlerFactory: EventHandlerFactory = () =>
+  const handlerFactory: EventHandlerFactory<{
+    extentions?: {
+      systemPrompt?: string;
+    };
+  }> = (handlerParam) =>
     createArvoEventHandler({
       contract: handlerContract,
       executionunits: 0,
@@ -138,86 +121,6 @@ export const createMcpAgent = <TName extends string, TOutput extends z.AnyZodObj
           const parentSpanOtelHeaders: OpenTelemetryHeaders = {
             traceparent: `00-${span.spanContext().traceId}-${span.spanContext().spanId}-01`,
             tracestate: null,
-          };
-
-          /**
-           * Wraps the LLM caller with comprehensive OpenTelemetry observability.
-           *
-           * This wrapper:
-           * - Creates dedicated spans for each LLM invocation
-           * - Combines system prompts with structured output instructions
-           * - Captures request/response attributes for debugging
-           * - Ensures proper error tracking and span status codes
-           */
-          const otelAgenticLLMCaller = async (
-            params: Omit<LLMIntegrationParam, 'span' | 'systemPrompt'> & {
-              systemPrompt: string | null;
-              description: string | null;
-              introduction: {
-                alias: string | null;
-                handlerSource: string;
-                agentName: string;
-              };
-            },
-          ): Promise<LLMIntegrationOutput> => {
-            // This function automatically inherits from the parent span
-            return await ArvoOpenTelemetry.getInstance().startActiveSpan({
-              name: 'Agentic LLM Call',
-              disableSpanManagement: true,
-              context: {
-                inheritFrom: 'TRACE_HEADERS',
-                traceHeaders: parentSpanOtelHeaders,
-              },
-              fn: async (_span) => {
-                try {
-                  const finalSystemPrompt =
-                    [
-                      cleanString(`
-                        # Your Identity
-                        You are an AI agent with the following identities:
-                        ${params.introduction.alias ? `- When interacting with humans, you are known as "@${params.introduction.alias}"` : ''} 
-                        - Your system identifier is "${params.introduction.handlerSource}"
-                        - Other AI agents know you as "${params.introduction.agentName}"
-                      `),
-                      ...(params.description ? [`# Your Purpose and Capabilities\n${params.description}`] : []),
-                      ...(params.systemPrompt ? [`# Your Instructions\n${params.systemPrompt}`] : []),
-                      ...(params.outputFormat
-                        ? [
-                            `# Required Response Format\nYou must respond in the following JSON format:\n${jsonUsageIntentPrompt(zodToJsonSchema(params.outputFormat))}`,
-                          ]
-                        : []),
-                    ]
-                      .join('\n\n')
-                      .trim() || null; // This is not null-coelese because I want it to become undefined on empty string
-
-                  openInferenceSpanInitAttributesSetter({
-                    messages: params.messages,
-                    systemPrompt: finalSystemPrompt,
-                    tools: params.toolDefinitions,
-                    span: _span,
-                  });
-                  const result = await agenticLLMCaller({
-                    ...params,
-                    systemPrompt: finalSystemPrompt ?? null,
-                    span: _span,
-                  });
-                  openInferenceSpanOutputAttributesSetter({
-                    ...result,
-                    span: _span,
-                  });
-                  return result;
-                } catch (e) {
-                  exceptionToSpan(e as Error, _span);
-                  _span.setStatus({
-                    code: SpanStatusCode.ERROR,
-                    message: (e as Error)?.message ?? 'Something went wrong',
-                  });
-                  throw e;
-                } finally {
-                  _span.end();
-                }
-              },
-            });
           };
 
           // Establish MCP connection before processing
@@ -279,24 +182,37 @@ export const createMcpAgent = <TName extends string, TOutput extends z.AnyZodObj
                 });
               }
 
-              const { response, toolRequests } = await otelAgenticLLMCaller({
-                type: i === 0 ? 'init' : 'tool_results',
-                messages,
-                toolDefinitions: mcpClientToolDefinitions,
-                description: description ?? null,
-                systemPrompt:
-                  systemPrompt?.({
-                    messages,
-                    toolDefinitions: mcpClientToolDefinitions,
-                    type: i === 0 ? 'init' : 'tool_results',
-                  }) ?? null,
-                outputFormat: outputFormat ?? null,
-                introduction: {
-                  alias: alias ?? null,
+              const agenticSystemPrompt = [
+                ...(systemPrompt
+                  ? [
+                      systemPrompt({
+                        messages,
+                        toolDefinitions: mcpClientToolDefinitions,
+                        type: i === 0 ? 'init' : 'tool_results',
+                      }),
+                    ]
+                  : []),
+                ...(handlerParam.extentions?.systemPrompt ? [handlerParam.extentions.systemPrompt] : []),
+              ].join('\n\n');
+
+              const { response, toolRequests } = await otelAgenticLLMCaller(
+                agenticLLMCaller,
+                {
+                  type: i === 0 ? 'init' : 'tool_results',
+                  messages,
+                  toolDefinitions: mcpClientToolDefinitions,
+                  description: description ?? null,
+                  systemPrompt: agenticSystemPrompt,
+                  outputFormat: outputFormat ?? null,
+                  alias: alias,
                   handlerSource: contract.accepts.type,
-                  agentName: contract.accepts.type.replaceAll('.', '_'),
+                  toolsWhichRequireApproval: [],
                 },
-              });
+                {
+                  parentSpan: span,
+                  parentOtelHeaders: parentSpanOtelHeaders,
+                },
+              );
 
               /**
                * LLM provided direct response without needing tools.

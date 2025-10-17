@@ -6,7 +6,7 @@ import {
   fetchWebMcpAgent,
   operatorAgent,
   githubMcpAgent,
-  zapierMcpAgent,
+  zapierGoogleDocsMcpAgent,
 } from '@repo/agentic-handlers';
 import { cleanString, type VersionedArvoContract } from 'arvo-core';
 
@@ -29,7 +29,7 @@ export const agentMap = Object.fromEntries(
     fetchWebMcpAgent,
     operatorAgent,
     githubMcpAgent,
-    zapierMcpAgent,
+    zapierGoogleDocsMcpAgent,
   ].map((item) => [item.alias, { contract: item.contract.version('1.0.0') }]),
   // biome-ignore lint/suspicious/noExplicitAny: Needs to general
 ) as Record<string, { contract: VersionedArvoContract<any, any> }>;
@@ -52,13 +52,12 @@ export type ParsedMessage = {
 
 /**
  * Parses a message to extract agent mentions using the @name pattern.
- * Removes the agent mention from the message and returns both the identified agent and cleaned text.
  *
  * @example
  * ```typescript
  * const result = parseAgentFromMessage("@aleej calculate 2 + 2");
  * // result.agent.name === "aleej"
- * // result.cleanMessage === "calculate 2 + 2"
+ * // result.cleanMessage === "@aleej calculate 2 + 2"
  * ```
  */
 export const parseAgentFromMessage = (message: string): ParsedMessage => {
@@ -95,25 +94,46 @@ export const parseAgentFromMessage = (message: string): ParsedMessage => {
     agent: foundAgent,
     cleanMessage: cleanMessage.trim(),
     systemPrompt: cleanString(`
-      # Multi-Agent System Context
+      # Critical: You Must Respect Your Operational Boundaries Throughout the Entire Conversation
       
-      You are part of a multi-agent system. When queries are outside your expertise, 
-      delegate to specialized agents available as tools or direct users to mention them.
+      ## Your Operational Boundaries
       
-      ## Delegation Strategy
+      **Within Your Scope:**
+      - Use your available tools to handle requests that match your specialization
+      - Call agent tools you have direct access to when their capabilities are needed
+      - Answer questions within your domain knowledge without requiring tools
       
-      1. **Check your tools first** - If you have an agent tool matching the need, call it directly
-      2. **Refer if unavailable** - If not in your tools, tell the user: "Please ask @agentname about this"
-      ${isOperator ? '3. **Use public names** - Always refer to agents by their @name when communicating with humans' : ''}
+      **Outside Your Scope:**
+      - Requests requiring agents you cannot access directly
+      - Workflows spanning multiple agents or domains
+      - Tasks needing system-level coordination or resource management
       
-      ## Available Agents
+      ## Escalation Principle
       
+      When a request exceeds your operational boundaries, **immediately escalate to @operator without attempting to fulfill any part of the request**.
+      
+      Do NOT:
+      - Provide partial answers or solutions
+      - Complete only the parts you can handle
+      - Solve portions of the request before escalating
+      
+      Instead, recognize the complete request requires orchestration and escalate entirely.
+      
+      **Escalation Template:**
+      "This request requires [what's missing: specific agents/capabilities/coordination]. Please ask @operator to handle this - they can orchestrate the necessary resources across the system."
+      
+      **Never:**
+      - Instruct users to chain requests across multiple agents ("ask @agent1, then ask @agent2")
+      - Attempt to coordinate workflows beyond your tool access
+      - Promise capabilities you don't have
+      - Complete parts of requests that require orchestration
+      
+      ## System Agents
       ${agentRoster}
-      
       ${
         isOperator
-          ? 'As @operator, mention agents by their public @names when explaining your coordination (e.g., "@aleej will calculate this", "consulting @emma").'
-          : 'Check if these agents are in your available tools. Use the tool identifier (in parentheses) to call them, or refer users to the @name if unavailable.'
+          ? '\nAs @operator, you are the system orchestrator. You coordinate agents, manage workflows, and maintain cross-domain context. Always use agent @names when communicating with users.'
+          : '\nThese agents exist in the system. Use their tool identifiers if available to you; otherwise, escalate multi-agent needs to @operator.'
       }
     `),
   };
