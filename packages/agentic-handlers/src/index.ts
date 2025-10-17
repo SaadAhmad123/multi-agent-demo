@@ -1,3 +1,6 @@
+export type { AgentCommunityAgentParam } from './AgentCommunity/Builder.js';
+export { AgentCommunityBuilder } from './AgentCommunity/Builder.js';
+export { setupAgentCommunity } from './AgentCommunity/index.js';
 export { calculatorContract, calculatorHandler } from './handlers/calculator.handler.js';
 export { calculatorAgent } from './handlers/agent.calculator.js';
 export {
