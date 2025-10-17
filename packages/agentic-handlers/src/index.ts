@@ -1,3 +1,4 @@
+export { EpicAgentCommunity } from './EpicAgentCommunity.js';
 export type { AgentCommunityAgentParam } from './AgentCommunity/Builder.js';
 export { AgentCommunityBuilder } from './AgentCommunity/Builder.js';
 export { setupAgentCommunity } from './AgentCommunity/index.js';

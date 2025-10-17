@@ -91,7 +91,7 @@ export const otelAgenticLLMCaller: (
             cleanString(`
               # Your Identity
               You are an AI agent in a multi-agentic event driven system with the following identities:
-              ${params.alias ? `- You are a human user facing agent. Human user know you via an alias "${params.alias}". Human users can interact directly with you by mentioning you as "@${params.alias} in the text"` : ''} 
+              ${params.alias ? `- You are a human user facing agent. Your name known to human user is "${params.alias}" NOT "@${params.alias}". However, human users can interact directly with you by tagging you as "@${params.alias} in the text"` : ''} 
               - Your broaded event-driven system identifier is "${params.handlerSource}"
               - Other AI agents know via you AI Agent compliant ID "${toolNameFormatter.format(params.handlerSource)}"
                       `),

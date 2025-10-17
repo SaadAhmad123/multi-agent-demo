@@ -13,7 +13,7 @@ export const astroDocsMcpAgent = createMcpAgent({
     directly from the Astro knowledge base to answer questions about Astro's features, 
     APIs, integrations, deployment strategies, and development workflows.
   `),
-  mcpClient: new MCPClient('https://mcp.docs.astro.build/mcp'),
+  mcpClient: new MCPClient(() => ({ url: 'https://mcp.docs.astro.build/mcp' })),
   agenticLLMCaller: openaiLLMCaller,
   systemPrompt: () =>
     cleanString(`

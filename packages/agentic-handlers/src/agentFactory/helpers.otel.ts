@@ -6,8 +6,8 @@ import {
 import type {
   AgenticMessageContent,
   AgenticToolDefinition,
-  CallAgenticLLMOutput,
-  CallAgenticLLMParam,
+  LLMIntegrationParam,
+  LLMIntegrationOutput,
 } from './types.js';
 
 /**
@@ -21,7 +21,7 @@ import type {
 export const openInferenceSpanInitAttributesSetter = (param: {
   span: Span;
   tools: AgenticToolDefinition[];
-  messages: CallAgenticLLMParam['messages'];
+  messages: LLMIntegrationParam['messages'];
   systemPrompt: string | null;
 }) => {
   param.span.setAttributes({
@@ -112,7 +112,7 @@ export const openInferenceSpanOutputAttributesSetter = ({
   response,
   toolRequests,
   usage,
-}: CallAgenticLLMOutput & { span: Span }) => {
+}: LLMIntegrationOutput & { span: Span }) => {
   span.setAttributes({
     [`${OpenInferenceSemanticConventions.LLM_OUTPUT_MESSAGES}.0.${OpenInferenceSemanticConventions.MESSAGE_ROLE}`]:
       'assistant',

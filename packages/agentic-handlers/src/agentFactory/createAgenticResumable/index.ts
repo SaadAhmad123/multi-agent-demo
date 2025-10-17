@@ -298,7 +298,7 @@ export const createAgenticResumable = <
                   maxToolCallIterationAllowed: config.maxToolInteractions ?? 5,
                 },
                 services: toolRequests.map((item) =>
-                  resolvedHandlerConfig.serviceDomains[item.type]
+                  resolvedHandlerConfig.serviceDomains[item.type]?.length
                     ? { ...item, domain: resolvedHandlerConfig.serviceDomains[item.type] }
                     : item,
                 ),
@@ -468,7 +468,7 @@ export const createAgenticResumable = <
                 currentToolCallIteration: context.currentToolCallIteration + 1,
               },
               services: toolRequests.map((item) =>
-                resolvedHandlerConfig.serviceDomains[item.type]
+                resolvedHandlerConfig.serviceDomains[item.type]?.length
                   ? { ...item, domain: resolvedHandlerConfig.serviceDomains[item.type] }
                   : item,
               ),

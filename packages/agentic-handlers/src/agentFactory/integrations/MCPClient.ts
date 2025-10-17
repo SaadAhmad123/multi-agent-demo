@@ -21,12 +21,12 @@ export class MCPClient implements IAgenticMCPClient {
   private readonly url: () => string;
   private readonly requestInit: () => RequestInit;
 
-  constructor(url: string | (() => string), requestInit?: RequestInit | (() => RequestInit)) {
+  constructor(param: { url: string; requestInit?: RequestInit } | (() => { url: string; requestInit?: RequestInit })) {
     this.client = null;
     this.isConnected = false;
     this.availableTools = [];
-    this.url = typeof url === 'string' ? () => url : url;
-    this.requestInit = !requestInit ? () => ({}) : typeof requestInit === 'function' ? requestInit : () => requestInit;
+    this.url = () => (typeof param === 'function' ? param() : param).url;
+    this.requestInit = () => (typeof param === 'function' ? param() : param).requestInit ?? {};
   }
 
   /**

@@ -41,6 +41,6 @@ export const zapierGmailAndWeatherMcpAgent = createMcpAgent({
     beyond your domain, immediately respond: "This requires capabilities beyond my Gmail and Weather 
     specialization. Please ask @operator to coordinate the appropriate agents for this task."
   `),
-  mcpClient: new MCPClient(() => process.env.ZAPIER_MCP_INTEGRATION_URL_GMAIL_WEATHER || 'no url'),
+  mcpClient: new MCPClient(() => ({ url: process.env.ZAPIER_MCP_INTEGRATION_URL_GMAIL_WEATHER || 'no url' })),
   agenticLLMCaller: openaiLLMCaller,
 });

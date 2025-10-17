@@ -108,12 +108,10 @@ export const requestProcessor = async (param: RequestProcessorInput) =>
       try {
         let _message = param.message;
         let agent: ReturnType<typeof parseAgentFromMessage>['agent'] = null;
-        let additionalSystemPrompt: string | null = null;
         if (!param.isHumanReview && !param.isToolApproval) {
           const agentParsedMessage = parseAgentFromMessage(_message);
           _message = agentParsedMessage.cleanMessage;
           agent = agentParsedMessage.agent;
-          additionalSystemPrompt = agentParsedMessage.systemPrompt;
 
           if (!agent) {
             return {
@@ -159,7 +157,6 @@ export const requestProcessor = async (param: RequestProcessorInput) =>
             data: {
               parentSubject$$: null,
               message: _message.trim() || 'What can you do?',
-              additionalSystemPrompt: additionalSystemPrompt || undefined,
             },
           });
         })();

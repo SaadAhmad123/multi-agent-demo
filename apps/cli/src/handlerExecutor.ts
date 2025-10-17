@@ -1,15 +1,4 @@
-import {
-  calculatorAgent,
-  calculatorHandler,
-  webInfoAgent,
-  findDomainMcpAgent,
-  astroDocsMcpAgent,
-  fetchWebMcpAgent,
-  operatorAgent,
-  githubMcpAgent,
-  zapierGmailAndWeatherMcpAgent,
-  zapierGoogleDocsMcpAgent,
-} from '@repo/agentic-handlers';
+import { calculatorHandler, EpicAgentCommunity } from '@repo/agentic-handlers';
 import type { ArvoEvent } from 'arvo-core';
 import { createSimpleEventBroker, type IMachineMemory } from 'arvo-event-handler';
 
@@ -27,18 +16,7 @@ export const execute = async (
 ): Promise<ArvoEvent | null> => {
   let domainedEvent: ArvoEvent | null = null;
   const { resolve } = createSimpleEventBroker(
-    [
-      calculatorHandler(),
-      calculatorAgent.handlerFactory({ memory }),
-      webInfoAgent.handlerFactory({ memory }),
-      findDomainMcpAgent.handlerFactory({}),
-      astroDocsMcpAgent.handlerFactory({}),
-      fetchWebMcpAgent.handlerFactory({}),
-      operatorAgent.handlerFactory({ memory }),
-      githubMcpAgent.handlerFactory({}),
-      zapierGmailAndWeatherMcpAgent.handlerFactory({}),
-      zapierGoogleDocsMcpAgent.handlerFactory({}),
-    ],
+    [calculatorHandler(), ...EpicAgentCommunity.agents.map((item) => item.handlerFactory({ memory }))],
     {
       onDomainedEvents: async ({ event }) => {
         domainedEvent = event;

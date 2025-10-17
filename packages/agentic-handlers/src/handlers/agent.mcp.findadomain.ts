@@ -21,7 +21,7 @@ export const findDomainMcpAgent = createMcpAgent({
     verify registration status, provide pricing information, and suggest alternative 
     domain options when preferred choices are unavailable.
   `),
-  mcpClient: new MCPClient('https://api.findadomain.dev/mcp'),
+  mcpClient: new MCPClient(() => ({ url: 'https://api.findadomain.dev/mcp' })),
   agenticLLMCaller: openaiLLMCaller,
   maxToolInteractions: 2,
   systemPrompt: () =>

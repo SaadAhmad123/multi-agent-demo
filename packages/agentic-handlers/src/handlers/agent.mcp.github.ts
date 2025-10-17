@@ -23,9 +23,12 @@ export const githubMcpAgent = createMcpAgent({
       If a request is outside your GitHub scope, politely decline.
     </system_instructions>
   `,
-  mcpClient: new MCPClient('https://api.githubcopilot.com/mcp/x/repos/readonly', () => ({
-    headers: {
-      Authorization: `Bearer ${process.env.GITHUB_MCP_PAT_KEY}`,
+  mcpClient: new MCPClient(() => ({
+    url: 'https://api.githubcopilot.com/mcp/x/repos/readonly',
+    requestInit: {
+      headers: {
+        Authorization: `Bearer ${process.env.GITHUB_MCP_PAT_KEY}`,
+      },
     },
   })),
   agenticLLMCaller: anthropicLLMCaller,

@@ -34,6 +34,6 @@ export const zapierGoogleDocsMcpAgent = createMcpAgent({
     "This requires capabilities beyond my specialization. Please ask @operator to 
     coordinate the appropriate agents for this task."
   `),
-  mcpClient: new MCPClient(() => process.env.ZAPIER_MCP_INTEGRATION_URL_GOOGLE_DOCS || 'no url'),
+  mcpClient: new MCPClient(() => ({ url: process.env.ZAPIER_MCP_INTEGRATION_URL_GOOGLE_DOCS || 'no url' })),
   agenticLLMCaller: openaiLLMCaller,
 });

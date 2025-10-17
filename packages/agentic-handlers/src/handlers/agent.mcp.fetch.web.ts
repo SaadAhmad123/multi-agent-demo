@@ -61,6 +61,6 @@ export const fetchWebMcpAgent = createMcpAgent({
         if possible.
       </limitations>
     `),
-  mcpClient: new MCPClient('https://remote.mcpservers.org/fetch/mcp'),
+  mcpClient: new MCPClient(() => ({ url: 'https://remote.mcpservers.org/fetch/mcp' })),
   agenticLLMCaller: openaiLLMCaller,
 });
