@@ -17,6 +17,7 @@ import { z } from 'zod';
  */
 export const calculatorContract = createArvoContract({
   uri: '#/amas/calculator/execute',
+
   type: 'com.calculator.execute',
   description:
     'Evaluates mathematical expressions in a secure sandboxed environment. Supports arithmetic operations, common mathematical functions (trigonometric, logarithmic, exponential, rounding), and constants (PI, E). Does not support: symbolic algebra, equation solving, calculus operations, matrix operations, statistical analysis, or custom function definitions.',

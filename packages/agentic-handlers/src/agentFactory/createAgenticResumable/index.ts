@@ -4,7 +4,12 @@ import {
   type OpenTelemetryHeaders,
   type InferVersionedArvoContract,
 } from 'arvo-core';
-import { createArvoResumable, type EventHandlerFactory, type IMachineMemory } from 'arvo-event-handler';
+import {
+  createArvoResumable,
+  type EnqueueArvoEventActionParam,
+  type EventHandlerFactory,
+  type IMachineMemory,
+} from 'arvo-event-handler';
 import { z } from 'zod';
 import type { CreateAgenticResumableParams, LLMIntegrationParam, IToolUseApprovalMemory } from '../types.js';
 import {} from '../helpers.otel.js';
@@ -297,10 +302,16 @@ export const createAgenticResumable = <
                   currentToolCallIteration: 1,
                   maxToolCallIterationAllowed: config.maxToolInteractions ?? 5,
                 },
-                services: toolRequests.map((item) =>
-                  resolvedHandlerConfig.serviceDomains[item.type]?.length
-                    ? { ...item, domain: resolvedHandlerConfig.serviceDomains[item.type] }
-                    : item,
+                services: toolRequests.map(
+                  (item) =>
+                    ({
+                      id: { deduplication: 'DEVELOPER_MANAGED', value: item.id },
+                      type: item.type,
+                      data: item.data,
+                      domain: resolvedHandlerConfig.serviceDomains[item.type]?.length
+                        ? resolvedHandlerConfig.serviceDomains[item.type]
+                        : undefined,
+                    }) as EnqueueArvoEventActionParam<Record<string, unknown>, string>,
                 ),
               };
             }
@@ -467,10 +478,16 @@ export const createAgenticResumable = <
                 toolTypeCount,
                 currentToolCallIteration: context.currentToolCallIteration + 1,
               },
-              services: toolRequests.map((item) =>
-                resolvedHandlerConfig.serviceDomains[item.type]?.length
-                  ? { ...item, domain: resolvedHandlerConfig.serviceDomains[item.type] }
-                  : item,
+              services: toolRequests.map(
+                (item) =>
+                  ({
+                    id: { deduplication: 'DEVELOPER_MANAGED', value: item.id },
+                    type: item.type,
+                    data: item.data,
+                    domain: resolvedHandlerConfig.serviceDomains[item.type]?.length
+                      ? resolvedHandlerConfig.serviceDomains[item.type]
+                      : undefined,
+                  }) as EnqueueArvoEventActionParam<Record<string, unknown>, string>,
               ),
             };
           }
