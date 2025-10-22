@@ -1,5 +1,5 @@
 import { cleanString } from 'arvo-core';
-import { createAgenticResumable } from '../agentFactory/createAgenticResumable/index.js';
+import { createAgenticResumable } from '../agentFactory/createAgenticResumable/index.dep.js';
 import { anthropicLLMCaller } from '../agentFactory/integrations/anthropic.js';
 import { humanInteractionServiceDomain } from '../agentFactory/contracts/humanInteraction.contract.js';
 import { calculatorAgent } from './agent.calculator.js';

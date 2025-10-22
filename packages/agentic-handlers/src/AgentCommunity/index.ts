@@ -1,5 +1,5 @@
 import { humanInteractionServiceDomain } from '../agentFactory/contracts/humanInteraction.contract.js';
-import { validateServiceContract } from '../agentFactory/createAgenticResumable/utils.js';
+import { validateServiceContract } from '../agentFactory/createAgenticResumable/utils/index.js';
 import type { AnyVersionedContract, IAgenticMCPClient, LLMIntergration } from '../agentFactory/types.js';
 import { AgentCommunityBuilder } from './Builder.js';
 

@@ -1,4 +1,4 @@
-import { createAgenticResumable } from '../agentFactory/createAgenticResumable/index.js';
+import { createAgenticResumable } from '../agentFactory/createAgenticResumable/index.dep.js';
 import { anthropicLLMCaller } from '../agentFactory/integrations/anthropic.js';
 import { cleanString } from 'arvo-core';
 import { astroDocsMcpAgent } from './agent.mcp.astro.docs.js';

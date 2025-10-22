@@ -1,4 +1,4 @@
-import { createAgenticResumable } from '../agentFactory/createAgenticResumable/index.js';
+import { createAgenticResumable } from '../agentFactory/createAgenticResumable/index.dep.js';
 import { calculatorContract } from './calculator.handler.js';
 import { humanInteractionServiceDomain } from '../agentFactory/contracts/humanInteraction.contract.js';
 import { cleanString } from 'arvo-core';

@@ -1,7 +1,7 @@
 import { ConfigViolation, type EventHandlerFactory, type IMachineMemory } from 'arvo-event-handler';
 import { humanInteractionContract } from '../agentFactory/contracts/humanInteraction.contract.js';
 import { toolUseApprovalContract } from '../agentFactory/contracts/toolUseApproval.contract.js';
-import { createAgenticResumable } from '../agentFactory/createAgenticResumable/index.js';
+import { createAgenticResumable } from '../agentFactory/createAgenticResumable/index.dep.js';
 import { createMcpAgent } from '../agentFactory/createMcpAgent.js';
 import type {
   AnyVersionedContract,
