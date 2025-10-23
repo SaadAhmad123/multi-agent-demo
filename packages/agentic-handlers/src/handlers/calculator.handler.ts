@@ -1,4 +1,4 @@
-import { createArvoContract } from 'arvo-core';
+import { cleanString, createArvoContract } from 'arvo-core';
 import { createArvoEventHandler, type EventHandlerFactory } from 'arvo-event-handler';
 import { z } from 'zod';
 
@@ -17,10 +17,25 @@ import { z } from 'zod';
  */
 export const calculatorContract = createArvoContract({
   uri: '#/amas/calculator/execute',
-
   type: 'com.calculator.execute',
-  description:
-    'Evaluates mathematical expressions in a secure sandboxed environment. Supports arithmetic operations, common mathematical functions (trigonometric, logarithmic, exponential, rounding), and constants (PI, E). Does not support: symbolic algebra, equation solving, calculus operations, matrix operations, statistical analysis, or custom function definitions.',
+  description: cleanString(`
+    Evaluates mathematical expressions in a secure sandboxed environment. 
+    Supports arithmetic operations, common mathematical functions (trigonometric, logarithmic, 
+    exponential, rounding), and constants (PI, E). Does not support: symbolic algebra, equation 
+    solving, calculus operations, matrix operations, statistical analysis, or custom function definitions.  
+
+    # Critical Tool Limitation
+
+    Your calculator tool evaluates ONLY numeric expressions - it cannot solve equations or work with variables.
+
+    **Valid inputs:** "2 + 2", "sqrt(16) * 5", "(3 * 10) / 2", "45 * 8 + 62 * 3"
+    **Invalid inputs:** "3 * w = 30", "solve 2x + 4 = 6", "x = sqrt(1500)"
+
+    When solving problems with variables:
+    - Solve for the variable value algebraically in your reasoning
+    - Once you know the numeric value, use the calculator with pure numbers
+    - Example: To solve "3w = 30", determine w = 10 mentally, then calculate with "10" not "w" but rather "30/3"
+  `),
   versions: {
     '1.0.0': {
       accepts: z.object({
@@ -31,13 +46,11 @@ export const calculatorContract = createArvoContract({
               'Math functions (sqrt, pow, sin, cos, tan, asin, acos, atan, log, exp, abs, round, min, max, floor, ceil), ' +
               'and constants (PI, E). Examples: "2 + 2", "sqrt(16) * 5", "PI * pow(2, 3)", "sin(PI/2)", "(45 * 8) + (62 * 3)"',
           ),
-        toolUseId$$: z.string().optional().describe('Optional correlation identifier for tracking this operation'),
       }),
       emits: {
         'evt.calculator.execute.success': z.object({
           result: z.number().describe('Numeric result of the evaluated expression'),
           expression: z.string().describe('Original expression that was evaluated'),
-          toolUseId$$: z.string().optional().describe('Correlation identifier if provided in the request'),
         }),
       },
     },
@@ -50,7 +63,7 @@ export const calculatorHandler: EventHandlerFactory = () =>
     executionunits: 0,
     handler: {
       '1.0.0': async ({ event }) => {
-        const { expression, toolUseId$$ } = event.data;
+        const { expression } = event.data;
 
         if (!expression || expression.trim().length === 0) {
           throw new Error('Expression cannot be empty');
@@ -68,7 +81,6 @@ export const calculatorHandler: EventHandlerFactory = () =>
             data: {
               result,
               expression,
-              toolUseId$$,
             },
             executionunits: expression.length * 1e-6,
           };

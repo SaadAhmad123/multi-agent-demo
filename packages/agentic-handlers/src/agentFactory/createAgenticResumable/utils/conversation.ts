@@ -1,61 +1,94 @@
-import type { LLMIntegrationParam } from '../../types.js';
-import type { AgenticStateContext } from '../types.js';
-import type { ArvoEvent, InferArvoEvent } from 'arvo-core';
-import type { CreateAgenticResumableParams } from '../../types.js';
-import type z from 'zod';
+import { cleanString, type ArvoEvent, type InferArvoEvent } from 'arvo-core';
 import { toolInteractionLimitPrompt } from '../../helpers.prompt.js';
+import type { AnyVersionedContract, LLMIntegrationOutput, LLMIntegrationParam } from '../../types.js';
 
-export const initializeConversation = (
-  input: { data: { message: string; additionalSystemPrompt?: string } },
-  currentSubject: string,
+export const initConversation = (
+  input: { message: string; additionalSystemPrompt?: string; delagationSource?: { alias?: string; id: string } },
   maxToolCallIterationAllowed: number,
-): AgenticStateContext => {
-  const messages: LLMIntegrationParam['messages'] = [];
-
-  if (input.data.additionalSystemPrompt?.trim()) {
-    messages.push({
+): LLMIntegrationParam['messages'] => {
+  if (!input.message.trim()) {
+    throw new Error('[Error] A non-empty input message is required to invoke the Agent');
+  }
+  let messages: LLMIntegrationParam['messages'] = [];
+  if (input.additionalSystemPrompt?.trim()) {
+    messages = [
+      ...messages,
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            content: input.additionalSystemPrompt.trim(),
+          },
+        ],
+      },
+    ];
+  }
+  if (input.delagationSource) {
+    messages = [
+      ...messages,
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            content: cleanString(`
+              You are being delegated by an agent named "${input.delagationSource.alias || input.delagationSource.id}".
+            `),
+          },
+        ],
+      },
+    ];
+  }
+  messages = [
+    ...messages,
+    {
       role: 'user',
+      content: [{ type: 'text', content: input.message.trim() }],
+    },
+  ];
+  return integrateIterationLimitWarning(messages, 0, maxToolCallIterationAllowed);
+};
+
+export const integrateToolRequests = (
+  messages: NonNullable<LLMIntegrationParam['messages']>,
+  requests: NonNullable<LLMIntegrationOutput['toolRequests']> | null,
+): LLMIntegrationParam['messages'] => {
+  if (!requests) return messages;
+  const toolMessages: LLMIntegrationParam['messages'] = [];
+  for (const item of requests) {
+    toolMessages.push({
+      role: 'assistant',
       content: [
         {
-          type: 'text',
-          content: input.data.additionalSystemPrompt,
+          type: 'tool_use',
+          id: item.id,
+          name: item.type,
+          input: item.data as Record<string, unknown>,
         },
       ],
     });
   }
-
-  messages.push({
-    role: 'user',
-    content: [{ type: 'text', content: input.data.message }],
-  });
-
-  return {
-    currentSubject,
-    messages,
-    toolTypeCount: {},
-    currentToolCallIteration: 0,
-    maxToolCallIterationAllowed,
-  };
+  return [...messages, ...toolMessages];
 };
 
 export const integrateToolResults = (
-  context: AgenticStateContext,
-  eventMap: Record<string, InferArvoEvent<ArvoEvent>[]> | null,
-  services: NonNullable<CreateAgenticResumableParams<string, z.AnyZodObject>['services']> | null,
+  messages: LLMIntegrationParam['messages'],
+  eventMap: Record<string, InferArvoEvent<ArvoEvent>[]>,
+  services: Record<string, AnyVersionedContract>,
 ): LLMIntegrationParam['messages'] => {
   const errorEventType = new Set<string>(Object.values(services ?? {}).map((item) => item.systemError.type));
-  const messages = [...context.messages];
-
   for (const eventList of Object.values(eventMap ?? {})) {
     for (const event of eventList as InferArvoEvent<ArvoEvent>[]) {
-      const errorString = errorEventType.has(event.type)
-        ? `
-          // You must not call this tool again as it has failed. Just respond
-          // to the user's request as much as you can and tell the user where
-          // you failed and why.
-        `
-        : '';
-
+      const errorComment = errorEventType.has(event.type)
+        ? {
+            __comment: `
+              You must not call this tool again as it has failed. Just respond
+              to the user's request as much as you can and tell the user where 
+              and which tool failed and why.
+            `,
+          }
+        : {};
       messages.push({
         role: 'user' as const,
         content: [
@@ -64,22 +97,22 @@ export const integrateToolResults = (
             tool_use_id: event.parentid ?? '',
             content: JSON.stringify({
               ...event.data,
-              comment: errorString,
+              ...errorComment,
             }),
           },
         ],
       });
     }
   }
-
   return messages;
 };
 
-export const inegrateIterationLimitWarning = (
+export const integrateIterationLimitWarning = (
   messages: LLMIntegrationParam['messages'],
-  context: AgenticStateContext,
+  currentToolCallIteration: number,
+  maxToolCallIterationAllowed: number,
 ): LLMIntegrationParam['messages'] => {
-  if (context.currentToolCallIteration >= context.maxToolCallIterationAllowed - 1) {
+  if (currentToolCallIteration >= maxToolCallIterationAllowed - 1) {
     return [
       ...messages,
       {
@@ -94,4 +127,18 @@ export const inegrateIterationLimitWarning = (
     ];
   }
   return messages;
+};
+
+export const integrateLLMResponse = (
+  messages: LLMIntegrationParam['messages'],
+  response: string | object | null,
+): LLMIntegrationParam['messages'] => {
+  if (!response) return messages;
+  return [
+    ...messages,
+    {
+      role: 'assistant',
+      content: [{ type: 'text', content: typeof response === 'string' ? response : JSON.stringify(response) }],
+    },
+  ];
 };

@@ -7,7 +7,7 @@ import type {
   NonEmptyArray,
 } from '../types.js';
 import type { AgenticResumableContract } from './contract.js';
-import type { ArvoContract, ArvoSemanticVersion, VersionedArvoContract } from 'arvo-core';
+import type {} from 'arvo-core';
 
 export type AgenticStateContext = {
   currentSubject: string;
@@ -31,17 +31,12 @@ export type HandlerFactoryDependencies = {
 export type AgenticSystemPromptBuilderParam = Pick<LLMIntegrationParam, 'messages' | 'toolDefinitions' | 'type'> & {
   maxToolInteractions: number | null;
   toolApproval: {
-    // The names of the tools which require approval
-    toolNames: NonEmptyArray<{
-      // The original name of the tool
-      original: string;
-      // The agent compliant name of the tool
-      agentic: string;
-    }>;
-    contract: VersionedArvoContract<ArvoContract, ArvoSemanticVersion>;
+    // The names of the tools which require approval. These names are not agent compliant.
+    toolNames: NonEmptyArray<string>;
+    contract: AnyVersionedContract;
   } | null;
   humanInteraction: {
-    contract: VersionedArvoContract<ArvoContract, ArvoSemanticVersion>;
+    contract: AnyVersionedContract;
   } | null;
 };
 
@@ -85,7 +80,7 @@ export type CreateAgenticResumableParams<TContract extends AgenticResumableContr
     | AnyVersionedContract
     | {
         contract: AnyVersionedContract;
-        domains: NonEmptyArray<string>;
+        domains?: NonEmptyArray<string>;
         approval?:
           | boolean
           | {

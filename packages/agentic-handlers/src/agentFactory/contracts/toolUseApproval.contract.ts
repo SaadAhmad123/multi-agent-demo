@@ -5,26 +5,28 @@ export const toolUseApprovalContract = createSimpleArvoContract({
   uri: '#/amas/agent/tool/approval',
   type: 'tool.approval',
   description: cleanString(`
-    Request approval from the user before using restricted tools. This is the second approval 
-    gate after plan approval - use this immediately before calling each restricted tool. 
-    Explain what you need to do with the tool as outlined in your approved plan.
+    Use this tool to get explicit approval from the user for using the restricted tool.
+
+    ## How to Request Tool Approval
+
+    - Address the user directly using "you"/"your" - never refer to them in third person.
+    - The approval request message must feel to the user as if you are directly talking to them rather than
+      being mechanical and im-personal
+
   `),
   versions: {
     '1.0.0': {
       accepts: z.object({
-        toolUseId$$: z.string().optional(),
         message: z.string().describe(
           cleanString(`
-            Your message to the user requesting permission to use the restricted tool. 
-            Address them directly using "you" and "your". Explain what you need to do with 
-            this tool and reference your approved plan. Example: "I need to use [tool] to 
-            [action] as outlined in our approved plan. May I proceed?"
+            Your message to the user informing them about the tools for which you need
+            the approval. The user, in this message, must feel that you are directly talking
+            to them.
           `),
         ),
         tools: z.string().array().describe('List of restricted tool names you need approval to use'),
       }),
       emits: z.object({
-        toolUseId$$: z.string().optional(),
         approvals: z
           .object({
             tool: z.string().describe('The tool name this approval applies to'),

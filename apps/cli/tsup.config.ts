@@ -6,9 +6,9 @@ export default defineConfig({
   target: 'node19',
   platform: 'node',
   sourcemap: false,
-  clean: true,
+  clean: false,
   bundle: true,
-  minify: true,
+  minify: false,
   dts: true,
   outDir: 'dist',
   noExternal: [/.*/], // Bundle all the dependencies used.
@@ -18,10 +18,10 @@ export default defineConfig({
   outExtension: ({ format }) => ({
     js: format === 'cjs' ? '.cjs' : '.mjs',
   }),
-  esbuildOptions(options) {
-    options.mainFields = ['module', 'main'];
-    options.banner = {
-      js: `import { createRequire } from 'module';const require = createRequire(import.meta.url);`,
-    };
-  },
+  // esbuildOptions(options) {
+  //   options.mainFields = ['module', 'main'];
+  //   options.banner = {
+  //     js: `import { createRequire } from 'module';const require = createRequire(import.meta.url);`,
+  //   };
+  // },
 });

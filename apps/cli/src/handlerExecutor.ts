@@ -1,4 +1,9 @@
-import { calculatorHandler, EpicAgentCommunity } from '@repo/agentic-handlers';
+import {
+  calculatorAgent,
+  calculatorHandler,
+  humanInteractionServiceDomain,
+  operatorAgent,
+} from '@repo/agentic-handlers';
 import type { ArvoEvent } from 'arvo-core';
 import { createSimpleEventBroker, type IMachineMemory } from 'arvo-event-handler';
 
@@ -15,8 +20,13 @@ export const execute = async (
   memory: IMachineMemory<Record<string, unknown>>,
 ): Promise<ArvoEvent | null> => {
   let domainedEvent: ArvoEvent | null = null;
+  const humanInteractionDomain = [humanInteractionServiceDomain] as [string, ...string[]];
   const { resolve } = createSimpleEventBroker(
-    [calculatorHandler(), ...EpicAgentCommunity.agents.map((item) => item.handlerFactory({ memory }))],
+    [
+      calculatorHandler(),
+      operatorAgent({ memory, humanInteractionDomain }),
+      calculatorAgent({ memory, humanInteractionDomain }),
+    ],
     {
       onDomainedEvents: async ({ event }) => {
         domainedEvent = event;

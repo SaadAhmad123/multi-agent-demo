@@ -1,6 +1,6 @@
 import z from 'zod';
-import { createArvoOrchestratorContract } from 'arvo-core';
-import { buildAgentContractDescription, DEFAULT_AGENT_OUTPUT_FORMAT } from '../agent.utils.js';
+import { cleanString, createArvoOrchestratorContract } from 'arvo-core';
+import { DEFAULT_AGENT_OUTPUT_FORMAT } from '../agent.utils.js';
 import { AgenticMessageContentSchema } from '../schemas.js';
 
 export type CreateAgenticResumableContractParams<
@@ -22,7 +22,7 @@ export type CreateAgenticResumableContractParams<
   name: TName;
 
   /**
-   * Human-friendly name for the agent (e.g., "tom", "emma", "sales-assistant").
+   * Human-friendly name for the agent (e.g., "tom", "emma", etc).
    * Used for identification and logging purposes.
    */
   alias?: string;
@@ -50,6 +50,32 @@ export type CreateAgenticResumableContractParams<
   enableMessageHistoryInResponse?: boolean;
 };
 
+export const buildAgentContractDescription = (param: {
+  alias?: string;
+  description?: string;
+  contractName: string;
+}) => {
+  return cleanString(`
+    I am an AI Agent.
+    ${param.description ? `# Capabilities\n${param.description}` : '# Capabilities\nAsk me directly for a summary of what I can do.'}
+    ${
+      param.alias
+        ? `# Direct User Interaction
+          I am a user-facing AI Agent designed for direct human interaction. 
+          Users know me by the name "${param.alias}". They can call me directly by 
+          tagging me as "@${param.alias}" in their messages. This allows them to reach out 
+          to me specifically when they need my assistance.`
+        : ''
+    }
+    # System Identification
+    Within the broader system:
+    - My system identifier: "${param.contractName}"
+    - My AI Agent compliant ID (used by other AI agents to call me): "${param.contractName.replaceAll('.', '_')}"
+    Other AI agents in the system can invoke me using my AI Agent compliant ID when they need to delegate tasks 
+    or collaborate on solving user requests.
+  `);
+};
+
 export const createAgenticResumableContract = <
   TUri extends string = string,
   TName extends string = string,
@@ -68,6 +94,18 @@ export const createAgenticResumableContract = <
     versions: {
       '1.0.0': {
         init: z.object({
+          delagationSource: z
+            .object({
+              alias: z.string().optional().describe('Provide your user-facing name if you have one'),
+              id: z.string().describe('Provide your system id'),
+            })
+            .optional()
+            .describe(
+              cleanString(`
+              Your identifier, if you are an AI agent, when delegating tasks to me.
+              Examples: {"alias":"emma","id":"arvo.orc.agent.support"} or {"id":"arvo.orc.agent.processor"}
+            `),
+            ),
           message: z.string(),
           additionalSystemPrompt: z.string().optional(),
         }),
@@ -88,7 +126,11 @@ export const createAgenticResumableContract = <
     },
     metadata: {
       contractSpecificType: 'AgenticResumable',
-      config,
+      config: {
+        ...config,
+        output: config.output ?? DEFAULT_AGENT_OUTPUT_FORMAT,
+        outputFormat: config.output,
+      },
     },
   });
 
