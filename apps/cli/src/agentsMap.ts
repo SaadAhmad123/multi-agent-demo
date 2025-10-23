@@ -1,4 +1,4 @@
-import { EpicAgentCommunity } from '@repo/agentic-handlers';
+import { operatorAgentContract, calculatorAgentContract } from '@repo/agentic-handlers';
 import type { VersionedArvoContract } from 'arvo-core';
 
 /**
@@ -12,7 +12,10 @@ import type { VersionedArvoContract } from 'arvo-core';
  * ```
  */
 export const agentMap = Object.fromEntries(
-  EpicAgentCommunity.agents.map((item) => [item.alias, { contract: item.contract.version('1.0.0') }]),
+  [operatorAgentContract, calculatorAgentContract].map((item) => [
+    item.metadata.config.alias,
+    { contract: item.version('1.0.0') },
+  ]),
   // biome-ignore lint/suspicious/noExplicitAny: Needs to general
 ) as Record<string, { contract: VersionedArvoContract<any, any> }>;
 
@@ -46,8 +49,8 @@ export const parseAgentFromMessage = (message: string): ParsedMessage => {
   const matches = message.match(agentPattern);
 
   let foundAgent: ParsedMessage['agent'] = {
-    name: EpicAgentCommunity.defaultOperatorAgent.alias,
-    data: { contract: EpicAgentCommunity.defaultOperatorAgent.contract.version('1.0.0') },
+    name: operatorAgentContract.metadata.config.alias ?? 'operator',
+    data: { contract: operatorAgentContract.version('1.0.0') },
   };
   const cleanMessage = message;
 

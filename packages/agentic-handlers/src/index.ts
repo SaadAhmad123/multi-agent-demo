@@ -1,20 +1,20 @@
-export { EpicAgentCommunity } from './EpicAgentCommunity.js';
-export type { AgentCommunityAgentParam } from './AgentCommunity/Builder.js';
-export { AgentCommunityBuilder } from './AgentCommunity/Builder.js';
-export { setupAgentCommunity } from './AgentCommunity/index.js';
+// export { EpicAgentCommunity } from './EpicAgentCommunity.js';
+// export type { AgentCommunityAgentParam } from './AgentCommunity/Builder.js';
+// export { AgentCommunityBuilder } from './AgentCommunity/Builder.js';
+// export { setupAgentCommunity } from './AgentCommunity/index.js';
 export { calculatorContract, calculatorHandler } from './handlers/calculator.handler.js';
-export { calculatorAgent } from './handlers/agent.calculator.js';
+export { calculatorAgentContract, calculatorAgent } from './handlers/agent.calculator.js';
 export {
   humanInteractionContract,
   humanInteractionServiceDomain,
 } from './agentFactory/contracts/humanInteraction.contract.js';
 export { toolUseApprovalContract } from './agentFactory/contracts/toolUseApproval.contract.js';
-export { webInfoAgent } from './handlers/agent.webinfo.js';
-export { astroDocsMcpAgent } from './handlers/agent.mcp.astro.docs.js';
-export { findDomainMcpAgent } from './handlers/agent.mcp.findadomain.js';
-export { fetchWebMcpAgent } from './handlers/agent.mcp.fetch.web.js';
-export { operatorAgent } from './handlers/agent.operator.js';
-export { githubMcpAgent } from './handlers/agent.mcp.github.js';
-export { zapierGoogleDocsMcpAgent } from './handlers/agent.mcp.zapier.googledocs.js';
-export { zapierGmailAndWeatherMcpAgent } from './handlers/agent.mcp.zapier.gmailandweather.js';
+// export { webInfoAgent } from './handlers/agent.webinfo.js';
+// export { astroDocsMcpAgent } from './handlers/agent.mcp.astro.docs.js';
+// export { findDomainMcpAgent } from './handlers/agent.mcp.findadomain.js';
+// export { fetchWebMcpAgent } from './handlers/agent.mcp.fetch.web.js';
+export { operatorAgentContract, operatorAgent } from './handlers/agent.operator.js';
+// export { githubMcpAgent } from './handlers/agent.mcp.github.js';
+// export { zapierGoogleDocsMcpAgent } from './handlers/agent.mcp.zapier.googledocs.js';
+// export { zapierGmailAndWeatherMcpAgent } from './handlers/agent.mcp.zapier.gmailandweather.js';
 export type { IToolUseApprovalMemory } from './agentFactory/types.js';

@@ -1,70 +1,50 @@
-import { createAgenticResumable } from '../agentFactory/createAgenticResumable/index.js';
 import { calculatorContract } from './calculator.handler.js';
-import { humanInteractionServiceDomain } from '../agentFactory/contracts/humanInteraction.contract.js';
 import { cleanString } from 'arvo-core';
 import { anthropicLLMCaller } from '../agentFactory/integrations/anthropic.js';
+import { createAgenticResumableContract } from '../agentFactory/createAgenticResumable/contract.js';
+import { createAgenticResumable } from '../agentFactory/createAgenticResumable/index.js';
+import type { EventHandlerFactory, IMachineMemory } from 'arvo-event-handler';
+import type { NonEmptyArray } from '../agentFactory/types.js';
+
+export const calculatorAgentContract = createAgenticResumableContract({
+  alias: 'aleej',
+  name: 'calculator',
+  uri: '#/agents/resumable/calculator',
+  description: cleanString(`
+    Solves mathematical problems from natural language. Handles arithmetic, algebra,
+    and complex calculations.
+  `),
+});
 
 /**
  * Calculator agent that interprets natural language math problems and executes
  * computations with human oversight for accuracy and auditability.
  */
-export const calculatorAgent = createAgenticResumable({
-  alias: 'aleej',
-  name: 'calculator',
-  description: cleanString(`
-    Solves mathematical problems from natural language. Handles arithmetic, algebra,
-    and complex calculations.
-  `),
-  services: {
-    calculatorHandler: calculatorContract.version('1.0.0'),
-  },
-  humanInteraction: {
-    require: true,
-    domain: [humanInteractionServiceDomain],
-  },
-  systemPrompt: () =>
-    cleanString(`
-      You are a mathematics specialist solving problems from natural language.
+export const calculatorAgent: EventHandlerFactory<{
+  memory: IMachineMemory<Record<string, unknown>>;
+  humanInteractionDomain?: NonEmptyArray<string>;
+}> = ({ memory, humanInteractionDomain }) =>
+  createAgenticResumable({
+    contract: calculatorAgentContract,
+    systemPrompt: () =>
+      cleanString(`
+        You are a mathematics specialist solving problems from natural language.
 
-      # Response Strategy
+        **Answer directly** if no calculations needed.
 
-      **Answer Directly** when the query needs no calculations.
+        **Execute immediately** for simple, single-step calculations (basic arithmetic, algebra, standard formulas, clear problems with obvious solution paths). Follow tool approval requirements.
 
-      **Execute Immediately** for simple, single-step calculations:
-      - Basic arithmetic, algebra, or standard formulas
-      - Clear problem with obvious solution path
-      - Call tools directly following any tool approval requirements
-
-      **Plan and Approve** for complex multi-step problems:
-      1. Analyze the problem and identify all required calculation phases
-      2. Create a solution plan outlining your approach, formulas, and sequence
-      3. Request plan approval via human interaction
-      4. Execute calculations following all approval requirements for tools
-      5. Synthesize and return the complete solution
-
-      # What Makes a Problem "Complex"
-
-      - Requires multiple calculation phases or formulas
-      - Involves cross-domain math (geometry + trigonometry + finance, etc.)
-      - Has multiple valid approaches requiring strategic choice
-      - Solution path isn't immediately obvious from the problem statement
-
-      # Critical Tool Limitation
-
-      Your calculator tool evaluates ONLY numeric expressions - it cannot solve equations or work with variables.
-
-      **Valid inputs:** "2 + 2", "sqrt(16) * 5", "(3 * 10) / 2", "45 * 8 + 62 * 3"
-      **Invalid inputs:** "3 * w = 30", "solve 2x + 4 = 6", "x = sqrt(1500)"
-
-      When solving problems with variables:
-      1. Solve for the variable value algebraically in your reasoning
-      2. Once you know the numeric value, use the calculator with pure numbers
-      3. Example: To solve "3w = 30", determine w = 10 mentally, then calculate with "10" not "w" but rather "30/3"
-
-      # Critical: Scope Boundary
-
-      If at ANY point during the conversation the user requests capabilities beyond mathematics 
-      immediately stop and follow escalation to process. Do NOT attempt to solve the math portion first.
-    `),
-  agenticLLMCaller: anthropicLLMCaller,
-});
+        **For complex/multi-step/multi-problem requests:**
+        1. Analyze problem and identify calculation phases
+        2. Create solution plan (approach, formulas, sequence)
+        3. **Critical:** Request plan approval via human interaction tool (never skip this)
+        4. Execute calculations following tool approval requirements
+        5. Return complete solution
+      `),
+    services: {
+      calculatorHandler: calculatorContract.version('1.0.0'),
+    },
+    enableHumanInteraction: humanInteractionDomain ? { domains: humanInteractionDomain } : undefined,
+    memory,
+    llm: anthropicLLMCaller,
+  });

@@ -130,7 +130,6 @@ export const requestProcessor = async (param: RequestProcessorInput) =>
               parentid: param.humanReviewRequestEvent.id,
               source: 'test.test.test',
               data: {
-                toolUseId$$: param.humanReviewRequestEvent.data.toolUseId$$,
                 response: _message.trim() || 'No reponse. Can you not process and abort the process',
               },
             });
@@ -143,7 +142,6 @@ export const requestProcessor = async (param: RequestProcessorInput) =>
               parentid: param.toolApprovalRequestEvent.id,
               source: 'test.test.test',
               data: {
-                toolUseId$$: param.toolApprovalRequestEvent.data.toolUseId$$,
                 approvals: Object.entries(param.toolApprovalMap).map(([key, value]) => ({
                   tool: key,
                   value: value,

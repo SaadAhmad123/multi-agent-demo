@@ -3,53 +3,41 @@ import { z } from 'zod';
 import { StringFormatter } from './utils.js';
 import type {
   AnyVersionedContract,
-  CreateAgenticResumableParams,
   LLMIntegrationOutput,
   LLMIntegrationParam,
   LLMIntergration,
+  NonEmptyArray,
 } from './types.js';
 import { SpanStatusCode, type Span } from '@opentelemetry/api';
 import { openInferenceSpanInitAttributesSetter, openInferenceSpanOutputAttributesSetter } from './helpers.otel.js';
-import { zodToJsonSchema } from 'zod-to-json-schema';
-import { jsonUsageIntentPrompt } from './helpers.prompt.js';
+import type { CreateAgenticResumableParams } from './createAgenticResumable/types.js';
 
 /**
  * Default output format for agents that don't specify a custom output schema.
  * Provides a simple string response format for basic conversational agents.
  */
 export const DEFAULT_AGENT_OUTPUT_FORMAT = z.object({ response: z.string() });
-
-export const buildAgentContractDescription = (param: {
-  alias?: string;
-  description?: string;
-  contractName: string;
-}) => {
-  const aliasContent = cleanString(
-    param.alias
-      ? `
-    # Direct Human User Interaction:
-    I am a human user facing agent to which the user can reach out directly.
-    To humans, I am known by the alias "${param.alias}" and the user can directly
-    call me if they want by mentioning me "@${param.alias}" in their message. 
-  `
-      : '',
-  );
-  const internalSystemContent = cleanString(`
-    # Internal System Interactions:
-    Within the multi-agent event driven eco-system I am know by my system id "${param.contractName}".
-    And my fellow AI Agents can call me by my AI Agent Compliant ID "${param.contractName.replaceAll('.', '_')}"
-  `);
-  const descriptionContent = cleanString(`
-    # My Description 
-    ${param.description || 'I am an AI Agent but my description is not avaiable. Please ask me to provide you with a quick summary of my capabilities'}
-  `);
-  return [aliasContent, internalSystemContent, descriptionContent].join('\n\n');
-};
+export const DEFAULT_AGENT_MAX_TOOL_INTERACTIONS = 5;
 
 /**
  * Create a string formatter which can convert tool names to an agent compliant format
  */
 export const createAgentToolNameStringFormatter = () => new StringFormatter((str) => str.replaceAll('.', '_'));
+
+export type OtelLLMIntegrationParam = Omit<LLMIntegrationParam, 'span' | 'systemPrompt'> & {
+  systemPrompt: NonNullable<CreateAgenticResumableParams['systemPrompt']> | null;
+  maxToolInteractions: number | null;
+  description: string | null;
+  alias: string | null;
+  handlerSource: string;
+  toolApproval: {
+    toolNames: NonEmptyArray<string>;
+    contract: AnyVersionedContract;
+  } | null;
+  humanInteraction: {
+    contract: AnyVersionedContract;
+  } | null;
+};
 
 /**
  * Wraps the LLM caller with OpenTelemetry observability and system prompt generation.
@@ -58,23 +46,24 @@ export const createAgentToolNameStringFormatter = () => new StringFormatter((str
  * and ensures proper error tracking. The wrapper combines user-provided
  * system prompts with structured output instructions when applicable.
  */
-export const otelAgenticLLMCaller: (
+export const otelLLMIntegration: (
   agenticLLMCaller: LLMIntergration,
-  param: Omit<LLMIntegrationParam, 'span' | 'systemPrompt'> & {
-    systemPrompt: string | null;
-    description: string | null;
-    alias: CreateAgenticResumableParams<string, z.AnyZodObject>['alias'];
-    handlerSource: string;
-    toolsWhichRequireApproval?: string[];
-    toolApprovalContract?: AnyVersionedContract;
-    humanInteractionContract?: AnyVersionedContract;
-    humanInteraction?: CreateAgenticResumableParams<string, z.AnyZodObject>['humanInteraction'];
-  },
+  param: OtelLLMIntegrationParam,
   otel: {
     parentSpan: Span;
     parentOtelHeaders: OpenTelemetryHeaders;
   },
 ) => Promise<LLMIntegrationOutput> = async (agenticLLMCaller, params, otel) => {
+  const agenticSystemPrompt =
+    params.systemPrompt?.({
+      messages: params.messages,
+      type: params.type,
+      toolDefinitions: params.toolDefinitions,
+      maxToolInteractions: params.maxToolInteractions ?? DEFAULT_AGENT_MAX_TOOL_INTERACTIONS,
+      toolApproval: params.toolApproval,
+      humanInteraction: params.humanInteraction,
+    }) ?? null;
+
   // This function automatically inherits from the parent span
   return await ArvoOpenTelemetry.getInstance().startActiveSpan({
     name: 'Agentic LLM Call',
@@ -86,105 +75,66 @@ export const otelAgenticLLMCaller: (
     fn: async (span) => {
       try {
         const toolNameFormatter = createAgentToolNameStringFormatter();
-        const finalSystemPrompt =
-          [
-            cleanString(`
-              # Your Identity
-              You are an AI agent in a multi-agentic event driven system with the following identities:
-              ${params.alias ? `- You are a human user facing agent. Your name known to human user is "${params.alias}" NOT "@${params.alias}". However, human users can interact directly with you by tagging you as "@${params.alias} in the text"` : ''} 
-              - Your broaded event-driven system identifier is "${params.handlerSource}"
-              - Other AI agents know via you AI Agent compliant ID "${toolNameFormatter.format(params.handlerSource)}"
-                      `),
-            ...(params.description
-              ? [`# Your Capabilities As Known By Users and System: \n${params.description}`]
-              : []),
-            ...(params.systemPrompt ? [`# Your Instructions To Follow\n${params.systemPrompt}`] : []),
-            ...(params.humanInteraction && params.humanInteractionContract
-              ? [
-                  cleanString(`
-                    # CRITICAL: Human Interaction
+        const finalSystemPrompt = cleanString(`
+          # Your identity and capabilities
+          You are an AI agent in a multi-agentic event-driven system:
+          ${params.alias ? `- Human-facing name: "${params.alias}" (users tag you as "@${params.alias}")` : ''} 
+          - System identifier: "${params.handlerSource}"
+          - AI Agent ID: "${toolNameFormatter.format(params.handlerSource)}"
+          ${params.description ? `\n### Capabilities:\n${params.description}` : ''}
+          ${agenticSystemPrompt ? `# Instructions you must follow:\n${agenticSystemPrompt}` : ''}
+          ${
+            params.humanInteraction
+              ? `# CRITICAL: Human approval required before execution
+                You MUST use ${toolNameFormatter.format(params.humanInteraction.contract.accepts.type)} to get explicit approval 
+                of your execution plan before proceeding.
+                ## Approval workflow:
+                1. Present your plan to the user
+                2. Wait for their response
+                3. If they provide additional information → incorporate it, revise your plan, and present the updated plan for approval
+                4. If they ask questions or request clarification → answer and keep the interaction active
+                5. If they explicitly approve → proceed with execution
+                6. If they explicitly reject → stop or revise your approach based on user input
+                **Critical:** Do NOT proceed to execution or provide final answers until you receive explicit approval.
+                Additional information, questions, clarifications, or unrelated responses are NOT approval. When you 
+                receive new information, update your plan and present it again for approval. Keep the interaction 
+                active until you get clear approval or reach your tool call limit.`
+              : ''
+          }
+          ${
+            params.toolApproval
+              ? `# CRITICAL: Restricted tool approval required
 
-                    Use ${toolNameFormatter.format(params.humanInteractionContract.accepts.type)} to communicate 
-                    directly with the user and keep them in the loop when needed.
-                    ## Two Situations Require This Tool
-                    **Missing Information:** When the request is unclear or you lack details 
-                    needed to proceed, use this tool to ask the user directly. Don't guess.
-                    **Multi-Step Plans:** When your solution requires interpreting the problem 
-                    and creating a multi-step plan involving multiple tool calls or sequential steps, 
-                    present your complete plan and get approval before executing. Only do this 
-                    if you're actually solving a problem within your scope.
+                These tools require explicit user approval via ${toolNameFormatter.format(params.toolApproval.contract.accepts.type)}:
+                ${params.toolApproval.toolNames.map((tool) => `- ${toolNameFormatter.format(tool)}`).join('\n')}
 
-                    ## How to Communicate
+                ${
+                  params.humanInteraction
+                    ? `## Approval workflow:
+                      1. Get plan approval via ${toolNameFormatter.format(params.humanInteraction.contract.accepts.type)}
+                      2. Before calling restricted tools, get tool approval via ${toolNameFormatter.format(params.toolApproval.contract.accepts.type)}
+                      3. Handle approval response:
+                        - **Full approval:** Proceed with complete execution
+                        - **Partial approval:** Use ${toolNameFormatter.format(params.humanInteraction.contract.accepts.type)} to inform the user you can only solve the approved portion. Ask if they want to retry approval for remaining tools or proceed with partial results
+                        - **Full rejection:** Use ${toolNameFormatter.format(params.humanInteraction.contract.accepts.type)} to explain why the tools are needed. Ask if they want to retry the approval
+                      4. Execute only with approved tools
+                      **Critical:** Plan approval ≠ tool approval. Both are separate gates and both are required.`
+                    : `## Approval workflow:
+                      1. Before calling restricted tools, get approval via ${toolNameFormatter.format(params.toolApproval.contract.accepts.type)}
+                      2. Handle approval response:
+                        - **Full approval:** Proceed with complete execution
+                        - **Partial approval:** Execute only approved tools, collect available results, then provide final response explaining which results are missing due to lack of approval
+                        - **Full rejection:** Provide final response explaining you cannot fulfill the request due to inability to call the required restricted tools
+                      **Critical:** Without approval, you cannot call restricted tools. Provide partial or no results accordingly.`
+                }
 
-                    Address the user directly using "you" and "your" - never refer to them in third person.
-                    When seeking clarification, ask specific questions about what you need to know. Explain 
-                    why the information matters and what depends on their answer.
-                    When requesting approval, provide a clear structured plan that covers: what actions 
-                    you'll take, which tools or agents you'll use for each step, why each step is 
-                    necessary, and what the final outcome will be. Make it easy for them to understand and 
-                    approve your approach.
-                    After they respond, acknowledge what they've provided and either proceed with execution, 
-                    ask follow-up questions, or revise your plan based on their feedback.
-
-                    ## After The User Responds
-
-                    If they clarified: build your plan and request approval, or ask more questions.
-                    If they approved: execute your plan immediately.
-                    If they want changes: revise and resubmit.
-
-                    Keep the dialogue going until you're clear on what they need and have approval to proceed.
-
-                    **Critical:** This tool is synchronous dialogue with the user. Communicate naturally and directly.
-                  `),
-                ]
-              : []),
-            ...(params.toolsWhichRequireApproval?.length && params.toolApprovalContract
-              ? [
-                  cleanString(`
-                    # CRITICAL: Restricted Tool Approval Required
-                    These tools need explicit approval before use:
-                    ${params.toolsWhichRequireApproval.map((tool) => `- ${tool}`).join('\n')}
-                    ## Two-Stage Approval for Restricted Tools
-                    When your execution plan includes restricted tools:
-                    1. **First, get plan approval via com_human_interaction** as normal
-                    2. **Then, before using each restricted tool, call com_tool_approval** to request specific tool approval
-                    ## How to Request Tool Approval
-                    Address the user directly via com_tool_approval:
-                    "I need to use [restricted tool] to [specific action] as outlined in our approved plan. May I proceed?"
-                    **Never:**
-                    - Assume plan approval includes tool approval for restricted tools
-                    - Skip the com_tool_approval step even if the plan mentions the restricted tool
-                    - Call restricted tools directly after plan approval
-                    **Critical:** Plan approval and restricted tool approval are separate gates. Both are required.
-                  `),
-                ]
-              : []),
-            cleanString(`
-              # CRITICAL: Parallel Tool Execution
-
-              ${params.humanInteraction || params.toolsWhichRequireApproval?.length ? 'After obtaining all required approvals, c' : 'C'}all independent tools/agents in parallel 
-              to minimize latency and cost.
-
-              **Parallelize when:**
-              - Tools/agents don't depend on each other's outputs
-              - Multiple data sources need simultaneous querying
-              - Calculations or retrievals can happen concurrently
-
-              **Sequential only when:**
-              - Later calls require data from earlier calls
-              - Execution order affects the outcome
-
-              Maximize parallelism to reduce user wait time and system cost.
-            `),
-            ...(params.outputFormat
-              ? [
-                  `# Required Response Format\nYou must respond in the following JSON format:\n${jsonUsageIntentPrompt(zodToJsonSchema(params.outputFormat))}`,
-                ]
-              : []),
-          ]
-            .join('\n\n')
-            .trim() || null; // This is not null-coelese because I want it to become undefined on empty string
-
+                ## Never:
+                ${params.humanInteraction ? '- Assume plan approval includes tool approval' : ''}
+                - Skip ${toolNameFormatter.format(params.toolApproval.contract.accepts.type)} before calling restricted tools
+                - Call restricted tools without explicit approval`
+              : ''
+          }
+        `);
         openInferenceSpanInitAttributesSetter({
           messages: params.messages,
           systemPrompt: finalSystemPrompt,
