@@ -1,7 +1,7 @@
 import z from 'zod';
 import { cleanString, createArvoOrchestratorContract } from 'arvo-core';
-import { DEFAULT_AGENT_OUTPUT_FORMAT } from '../agent.utils.js';
-import { AgenticMessageContentSchema } from '../schemas.js';
+import { AgenticMessageContentSchema } from './schemas.js';
+import { DEFAULT_AGENT_OUTPUT_FORMAT } from './utils/defaults.js';
 
 export type CreateAgenticResumableContractParams<
   TUri extends string,
@@ -50,7 +50,7 @@ export type CreateAgenticResumableContractParams<
   enableMessageHistoryInResponse?: boolean;
 };
 
-export const buildAgentContractDescription = (param: {
+const buildAgentContractDescription = (param: {
   alias?: string;
   description?: string;
   contractName: string;

@@ -8,7 +8,7 @@ import type {
   AgenticToolDefinition,
   LLMIntegrationParam,
   LLMIntegrationOutput,
-} from './types.js';
+} from '../types.js';
 
 /**
  * Sets OpenInference-compliant attributes on an OpenTelemetry span for LLM input tracking.

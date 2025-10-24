@@ -5,13 +5,19 @@ import type {
   IToolUseApprovalMemory,
   LLMIntegrationOutput,
   NonEmptyArray,
-} from '../../types.js';
+} from '../types.js';
 import type { CreateAgenticResumableParams } from '../types.js';
 import type z from 'zod';
 import type { Span } from '@opentelemetry/api';
-import { toolUseApprovalContract } from '../../contracts/toolUseApproval.contract.js';
-import { humanInteractionContract } from '../../contracts/humanInteraction.contract.js';
+import { toolUseApprovalContract } from '../contracts/toolUseApproval.js';
+import { humanInteractionContract } from '../contracts/humanInteraction.js';
 import { v4 as uuid4 } from 'uuid';
+import { StringFormatter } from './StringFormatter.js';
+
+/**
+ * Create a string formatter which can convert tool names to an agent compliant format
+ */
+export const createAgentToolNameStringFormatter = () => new StringFormatter((str) => str.replaceAll('.', '_'));
 
 export const resolveServiceConfig = (
   _services: NonNullable<CreateAgenticResumableParams['services']> | null,

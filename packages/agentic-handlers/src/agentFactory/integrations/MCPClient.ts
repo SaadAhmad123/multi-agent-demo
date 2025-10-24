@@ -4,7 +4,8 @@ import { SpanStatusCode, type Span } from '@opentelemetry/api';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { exceptionToSpan, logToSpan } from 'arvo-core';
-import type { AgenticToolDefinition, IAgenticMCPClient } from '../types.js';
+import type { AgenticToolDefinition } from '../createAgenticResumable/types.js';
+import type { IAgenticMCPClient } from '../createAgenticResumable/mcp.interface.js';
 
 /**
  * Model Context Protocol (MCP) client implementation for connecting to and interacting with MCP servers.

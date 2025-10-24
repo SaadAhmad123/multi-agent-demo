@@ -1,10 +1,11 @@
 import { calculatorContract } from './calculator.handler.js';
 import { cleanString } from 'arvo-core';
 import { anthropicLLMCaller } from '../agentFactory/integrations/anthropic.js';
-import { createAgenticResumableContract } from '../agentFactory/createAgenticResumable/contract.js';
-import { createAgenticResumable } from '../agentFactory/createAgenticResumable/index.js';
 import type { EventHandlerFactory, IMachineMemory } from 'arvo-event-handler';
-import type { NonEmptyArray } from '../agentFactory/types.js';
+import type { NonEmptyArray } from '../agentFactory/createAgenticResumable/types.js';
+import { withDefaultSystemPrompt } from '../agentFactory/createAgenticResumable/utils/prompts.js';
+import { createAgenticResumableContract } from '../agentFactory/createAgenticResumable/createAgenticResumableContract.js';
+import { createAgenticResumable } from '../agentFactory/createAgenticResumable/createAgenticResumable.js';
 
 export const calculatorAgentContract = createAgenticResumableContract({
   alias: 'aleej',
@@ -26,7 +27,7 @@ export const calculatorAgent: EventHandlerFactory<{
 }> = ({ memory, humanInteractionDomain }) =>
   createAgenticResumable({
     contract: calculatorAgentContract,
-    systemPrompt: () =>
+    systemPrompt: withDefaultSystemPrompt(
       cleanString(`
         You are a mathematics specialist solving problems from natural language.
 
@@ -41,6 +42,7 @@ export const calculatorAgent: EventHandlerFactory<{
         4. Execute calculations following tool approval requirements
         5. Return complete solution
       `),
+    ),
     services: {
       calculatorHandler: calculatorContract.version('1.0.0'),
     },

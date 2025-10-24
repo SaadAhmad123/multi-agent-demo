@@ -1,10 +1,11 @@
 import { cleanString } from 'arvo-core';
 import { anthropicLLMCaller } from '../agentFactory/integrations/anthropic.js';
 import { calculatorAgentContract } from './agent.calculator.js';
-import { createAgenticResumableContract } from '../agentFactory/createAgenticResumable/contract.js';
-import { createAgenticResumable } from '../agentFactory/createAgenticResumable/index.js';
 import type { EventHandlerFactory, IMachineMemory } from 'arvo-event-handler';
-import type { NonEmptyArray } from '../agentFactory/types.js';
+import type { NonEmptyArray } from '../agentFactory/createAgenticResumable/types.js';
+import { withDefaultSystemPrompt } from '../agentFactory/createAgenticResumable/utils/prompts.js';
+import { createAgenticResumableContract } from '../agentFactory/createAgenticResumable/createAgenticResumableContract.js';
+import { createAgenticResumable } from '../agentFactory/createAgenticResumable/createAgenticResumable.js';
 
 export const operatorAgentContract = createAgenticResumableContract({
   alias: 'operator',
@@ -27,7 +28,7 @@ export const operatorAgent: EventHandlerFactory<{
   createAgenticResumable({
     contract: operatorAgentContract,
     maxToolInteractions: 100,
-    systemPrompt: () =>
+    systemPrompt: withDefaultSystemPrompt(
       cleanString(`
         You are the system orchestrator managing specialized agents. Users can reach you 
         or contact specialists directly for domain-specific needs.
@@ -52,6 +53,7 @@ export const operatorAgent: EventHandlerFactory<{
         - Iterate on plans when feedback indicates better approaches
         - Deliver complete answers, not status updates or follow-up questions
       `),
+    ),
     services: {
       calculatorAgent: {
         contract: calculatorAgentContract.version('1.0.0'),

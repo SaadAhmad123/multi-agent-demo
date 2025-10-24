@@ -1,6 +1,6 @@
 import { cleanString, type ArvoEvent, type InferArvoEvent } from 'arvo-core';
-import { toolInteractionLimitPrompt } from '../../helpers.prompt.js';
-import type { AnyVersionedContract, LLMIntegrationOutput, LLMIntegrationParam } from '../../types.js';
+import type { AnyVersionedContract, LLMIntegrationOutput, LLMIntegrationParam } from '../types.js';
+import { toolInteractionLimitPrompt } from './prompts.js';
 
 export const initConversation = (
   input: { message: string; additionalSystemPrompt?: string; delagationSource?: { alias?: string; id: string } },

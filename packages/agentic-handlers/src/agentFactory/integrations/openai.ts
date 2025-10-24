@@ -4,12 +4,13 @@ import type {
   LLMIntegrationParam,
   LLMIntegrationOutput,
   LLMIntergration,
-} from '../types.js';
+} from '../createAgenticResumable/types.js';
 import { SemanticConventions as OpenInferenceSemanticConventions } from '@arizeai/openinference-semantic-conventions';
 import type { ChatModel } from 'openai/resources/shared.mjs';
 import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/index.mjs';
-import { createAgentToolNameStringFormatter } from '../agent.utils.js';
-import type { StringFormatter } from '../utils.js';
+import type { StringFormatter } from '../createAgenticResumable/utils/StringFormatter.js';
+import { createAgentToolNameStringFormatter } from '../createAgenticResumable/utils/index.js';
+import { tryParseJson } from './utils/jsonParse.js';
 
 /**
  * Converts Arvo agentic messages to OpenAI-compatible chat completion format.
@@ -222,7 +223,11 @@ export const openaiLLMCaller: LLMIntergration = async ({
   // Structure response according to Arvo's agentic LLM output format
   const data: LLMIntegrationOutput = {
     toolRequests: toolRequests.length ? toolRequests : null,
-    response: finalResponse ? (outputFormat ? outputFormat.parse(JSON.parse(finalResponse)) : finalResponse) : null,
+    response: finalResponse
+      ? outputFormat && tryParseJson(finalResponse)
+        ? outputFormat.parse(JSON.parse(finalResponse))
+        : finalResponse
+      : null,
     toolTypeCount,
     usage: {
       tokens: {

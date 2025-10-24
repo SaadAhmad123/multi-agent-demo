@@ -17,6 +17,6 @@
     "lib": ["dom", "dom.iterable", "esnext"],
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/agentFactory/createAgenticResumable/createAgenticResumableContractts"],
   "exclude": ["node_modules"]
 }

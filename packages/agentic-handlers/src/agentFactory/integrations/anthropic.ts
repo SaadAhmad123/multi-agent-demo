@@ -1,7 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { SemanticConventions as OpenInferenceSemanticConventions } from '@arizeai/openinference-semantic-conventions';
-import type { AgenticToolDefinition, LLMIntegrationOutput, LLMIntergration } from '../types.js';
-import { createAgentToolNameStringFormatter } from '../agent.utils.js';
+import type { AgenticToolDefinition, LLMIntegrationOutput, LLMIntergration } from '../createAgenticResumable/types.js';
+import { createAgentToolNameStringFormatter } from '../createAgenticResumable/utils/index.js';
+import { tryParseJson } from './utils/jsonParse.js';
 
 /**
  * Anthropic Claude integration for agentic LLM calls within Arvo orchestrators.
@@ -133,7 +134,11 @@ export const anthropicLLMCaller: LLMIntergration = async ({
   // Structure response according to Arvo's agentic LLM output format
   const data: LLMIntegrationOutput = {
     toolRequests: toolRequests.length ? toolRequests : null,
-    response: finalResponse ? (outputFormat ? outputFormat.parse(JSON.parse(finalResponse)) : finalResponse) : null,
+    response: finalResponse
+      ? outputFormat && tryParseJson(finalResponse)
+        ? outputFormat.parse(JSON.parse(finalResponse))
+        : finalResponse
+      : null,
     toolTypeCount,
     usage: {
       tokens: {
