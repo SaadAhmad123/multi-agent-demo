@@ -10,7 +10,7 @@ import type {
 } from './schemas.js';
 import type { toolUseApprovalContract } from './contracts/toolUseApproval.js';
 import type { IMachineMemory } from 'arvo-event-handler';
-import type { AgenticResumableContract } from './createAgenticResumableContract.js';
+import type { AgenticResumableContract } from './create.contract.js';
 import type {} from 'arvo-core';
 
 export type NonEmptyArray<T> = [T, ...T[]];

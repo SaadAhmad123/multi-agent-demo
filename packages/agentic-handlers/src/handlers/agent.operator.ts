@@ -4,8 +4,8 @@ import { calculatorAgentContract } from './agent.calculator.js';
 import type { EventHandlerFactory, IMachineMemory } from 'arvo-event-handler';
 import type { NonEmptyArray } from '../agentFactory/createAgenticResumable/types.js';
 import { withDefaultSystemPrompt } from '../agentFactory/createAgenticResumable/utils/prompts.js';
-import { createAgenticResumableContract } from '../agentFactory/createAgenticResumable/createAgenticResumableContract.js';
-import { createAgenticResumable } from '../agentFactory/createAgenticResumable/createAgenticResumable.js';
+import { createAgenticResumableContract } from '../agentFactory/createAgenticResumable/create.contract.js';
+import { createAgenticResumable } from '../agentFactory/createAgenticResumable/create.resumable.js';
 
 export const operatorAgentContract = createAgenticResumableContract({
   alias: 'operator',

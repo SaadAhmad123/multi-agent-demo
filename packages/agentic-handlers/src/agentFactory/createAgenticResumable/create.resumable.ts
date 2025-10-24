@@ -1,5 +1,5 @@
 import type { AgenticStateContext, AgenticSystemPromptBuilderParam, CreateAgenticResumableParams } from './types.js';
-import type { AgenticResumableContract, createAgenticResumableContract } from './createAgenticResumableContract.js';
+import type { AgenticResumableContract, createAgenticResumableContract } from './create.contract.js';
 import {
   compareCollectedEventCounts,
   createAgentToolDefinitions,

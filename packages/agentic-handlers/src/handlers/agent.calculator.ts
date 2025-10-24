@@ -4,8 +4,8 @@ import { anthropicLLMCaller } from '../agentFactory/integrations/anthropic.js';
 import type { EventHandlerFactory, IMachineMemory } from 'arvo-event-handler';
 import type { NonEmptyArray } from '../agentFactory/createAgenticResumable/types.js';
 import { withDefaultSystemPrompt } from '../agentFactory/createAgenticResumable/utils/prompts.js';
-import { createAgenticResumableContract } from '../agentFactory/createAgenticResumable/createAgenticResumableContract.js';
-import { createAgenticResumable } from '../agentFactory/createAgenticResumable/createAgenticResumable.js';
+import { createAgenticResumableContract } from '../agentFactory/createAgenticResumable/create.contract.js';
+import { createAgenticResumable } from '../agentFactory/createAgenticResumable/create.resumable.js';
 
 export const calculatorAgentContract = createAgenticResumableContract({
   alias: 'aleej',
@@ -30,11 +30,8 @@ export const calculatorAgent: EventHandlerFactory<{
     systemPrompt: withDefaultSystemPrompt(
       cleanString(`
         You are a mathematics specialist solving problems from natural language.
-
         **Answer directly** if no calculations needed.
-
         **Execute immediately** for simple, single-step calculations (basic arithmetic, algebra, standard formulas, clear problems with obvious solution paths). Follow tool approval requirements.
-
         **For complex/multi-step/multi-problem requests:**
         1. Analyze problem and identify calculation phases
         2. Create solution plan (approach, formulas, sequence)
