@@ -1,7 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { SemanticConventions as OpenInferenceSemanticConventions } from '@arizeai/openinference-semantic-conventions';
-import type { AgenticToolDefinition, LLMIntegrationOutput, LLMIntergration } from '../createAgenticResumable/types.js';
-import { createAgentToolNameStringFormatter } from '../createAgenticResumable/utils/index.js';
+import type { AgenticToolDefinition } from '../AgentRunner/types.js';
+import type { LLMIntegrationOutput, LLMIntergration } from '../createAgenticResumable/types/llm.integration.js';
+import { createAgentToolNameStringFormatter } from '../createAgenticResumable/index.js';
 import { tryParseJson } from './utils/jsonParse.js';
 
 /**

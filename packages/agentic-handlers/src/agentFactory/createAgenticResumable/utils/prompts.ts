@@ -1,7 +1,7 @@
 import { cleanString } from 'arvo-core';
-import type { AgenticSystemPromptBuilderType } from '../types.js';
-import { createAgentToolNameStringFormatter } from './index.js';
+import type { AgenticSystemPromptBuilderType } from '../types/index.js';
 import { zodToJsonSchema } from 'zod-to-json-schema';
+import { createAgentToolNameStringFormatter } from './formatter.js';
 
 export const toolInteractionLimitPrompt = () => `
 You must answer the original question using all the data available to you. 

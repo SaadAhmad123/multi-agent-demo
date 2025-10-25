@@ -3,12 +3,8 @@ import {
   SemanticConventions as OpenInferenceSemanticConventions,
   OpenInferenceSpanKind,
 } from '@arizeai/openinference-semantic-conventions';
-import type {
-  AgenticMessageContent,
-  AgenticToolDefinition,
-  LLMIntegrationParam,
-  LLMIntegrationOutput,
-} from '../types.js';
+import type { AgenticMessageContent, AgenticToolDefinition } from '../../AgentRunner/types.js';
+import type { LLMIntegrationParam, LLMIntegrationOutput } from '../types/llm.integration.js';
 
 /**
  * Sets OpenInference-compliant attributes on an OpenTelemetry span for LLM input tracking.

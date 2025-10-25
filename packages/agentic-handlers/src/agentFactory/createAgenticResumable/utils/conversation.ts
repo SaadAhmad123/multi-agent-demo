@@ -1,5 +1,6 @@
 import { cleanString, type ArvoEvent, type InferArvoEvent } from 'arvo-core';
-import type { AnyVersionedContract, LLMIntegrationOutput, LLMIntegrationParam } from '../types.js';
+import type { AnyVersionedContract } from '../../types.js';
+import type { LLMIntegrationOutput, LLMIntegrationParam } from '../types/llm.integration.js';
 import { toolInteractionLimitPrompt } from './prompts.js';
 
 export const initConversation = (

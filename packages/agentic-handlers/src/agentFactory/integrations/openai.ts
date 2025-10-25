@@ -1,15 +1,15 @@
 import OpenAI from 'openai';
+import type { AgenticToolResultMessageContent } from '../AgentRunner/types.js';
 import type {
-  AgenticToolResultMessageContent,
   LLMIntegrationParam,
   LLMIntegrationOutput,
   LLMIntergration,
-} from '../createAgenticResumable/types.js';
+} from '../createAgenticResumable/types/llm.integration.js';
 import { SemanticConventions as OpenInferenceSemanticConventions } from '@arizeai/openinference-semantic-conventions';
 import type { ChatModel } from 'openai/resources/shared.mjs';
 import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/index.mjs';
-import type { StringFormatter } from '../createAgenticResumable/utils/StringFormatter.js';
-import { createAgentToolNameStringFormatter } from '../createAgenticResumable/utils/index.js';
+import type { StringFormatter } from '../createAgenticResumable/utils/formatter.js';
+import { createAgentToolNameStringFormatter } from '../createAgenticResumable/index.js';
 import { tryParseJson } from './utils/jsonParse.js';
 
 /**

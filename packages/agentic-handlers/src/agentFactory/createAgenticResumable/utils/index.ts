@@ -1,23 +1,15 @@
 import { type OpenTelemetryHeaders, VersionedArvoContract } from 'arvo-core';
-import type {
-  AgenticToolDefinition,
-  AnyVersionedContract,
-  IToolUseApprovalMemory,
-  LLMIntegrationOutput,
-  NonEmptyArray,
-} from '../types.js';
-import type { CreateAgenticResumableParams } from '../types.js';
+import type { IToolUseApprovalMemory } from '../types/tool.approval.mem.js';
+import type { AgenticToolDefinition } from '../../AgentRunner/types.js';
+import type { AnyVersionedContract } from '../../types.js';
+import type { NonEmptyArray } from '../../types.js';
+import type { LLMIntegrationOutput } from '../types/llm.integration.js';
+import type { CreateAgenticResumableParams } from '../types/index.js';
 import type z from 'zod';
 import type { Span } from '@opentelemetry/api';
 import { toolUseApprovalContract } from '../contracts/toolUseApproval.js';
 import { humanInteractionContract } from '../contracts/humanInteraction.js';
 import { v4 as uuid4 } from 'uuid';
-import { StringFormatter } from './StringFormatter.js';
-
-/**
- * Create a string formatter which can convert tool names to an agent compliant format
- */
-export const createAgentToolNameStringFormatter = () => new StringFormatter((str) => str.replaceAll('.', '_'));
 
 export const resolveServiceConfig = (
   _services: NonNullable<CreateAgenticResumableParams['services']> | null,
@@ -190,5 +182,47 @@ export const prioritizeToolRequests = (
   return {
     toolRequests,
     toolTypeCount,
+  };
+};
+
+export type SafePromiseResult<T> =
+  | {
+      data: T;
+      error: null;
+    }
+  | {
+      data: null;
+      error: Error;
+    };
+
+/**
+ * Wraps an async function to return a result object instead of throwing errors.
+ *
+ * @example
+ * ```typescript
+ * const safeFetch = safePromise(async (url: string) => {
+ *   const response = await fetch(url);
+ *   return response.json();
+ * });
+ *
+ * const result = await safeFetch('https://api.example.com/data');
+ * if (result.error) {
+ *   console.error('Failed:', result.error);
+ * } else {
+ *   console.log('Success:', result.data);
+ * }
+ * ```
+ */
+export const safePromise = <F extends unknown[], T>(func: (...args: F) => Promise<T>) => {
+  return async (...args: F): Promise<SafePromiseResult<T>> => {
+    try {
+      const data = await func(...args);
+      return { data, error: null };
+    } catch (error) {
+      return {
+        data: null,
+        error: error instanceof Error ? error : new Error(String(error)),
+      };
+    }
   };
 };

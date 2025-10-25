@@ -3,9 +3,9 @@ import type { Tool, ListToolsResult } from '@modelcontextprotocol/sdk/types.js';
 import { SpanStatusCode, type Span } from '@opentelemetry/api';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { exceptionToSpan, logToSpan } from 'arvo-core';
-import type { AgenticToolDefinition } from '../createAgenticResumable/types.js';
-import type { IAgenticMCPClient } from '../createAgenticResumable/mcp.interface.js';
+import { ArvoOpenTelemetry, exceptionToSpan, logToSpan, OpenInference, OpenInferenceSpanKind } from 'arvo-core';
+import type { AgenticToolDefinition } from '../AgentRunner/types.js';
+import type { IMCPClient } from '../createAgenticResumable/types/mcp.interface.js';
 
 /**
  * Model Context Protocol (MCP) client implementation for connecting to and interacting with MCP servers.
@@ -15,7 +15,7 @@ import type { IAgenticMCPClient } from '../createAgenticResumable/mcp.interface.
  * connection lifecycle. It supports both Server-Sent Events (SSE) and streamable HTTP
  * transport protocols, automatically selecting the appropriate transport based on the URL.
  */
-export class MCPClient implements IAgenticMCPClient {
+export class MCPClient implements IMCPClient {
   private client: Client | null;
   private isConnected: boolean;
   private availableTools: Tool[];
@@ -97,7 +97,7 @@ export class MCPClient implements IAgenticMCPClient {
    * Transforms the cached MCP tools into the AgenticToolDefinition format required
    * by the agent system. This method returns an empty array if not connected.
    */
-  async getToolDefinitions(parentOtelSpan: Span) {
+  async getToolDefinitions() {
     const toolDef: AgenticToolDefinition[] = [];
     if (!this.isConnected) return toolDef;
     for (const item of this.availableTools) {
@@ -119,30 +119,45 @@ export class MCPClient implements IAgenticMCPClient {
    * rather than throwing, allowing the agent to handle tool failures gracefully.
    */
   async invokeTool(param: { toolName: string; toolArguments?: Record<string, unknown> | null }, parentOtelSpan: Span) {
-    try {
-      logToSpan(
-        {
-          level: 'INFO',
-          message: `Invoking tool<${param.toolName}> with arguments on MCP Server@${this.url}`,
-          param: JSON.stringify(param),
-        },
-        parentOtelSpan,
-      );
-      if (!this.isConnected || !this.client) {
-        throw new Error(`MCP Server@${this.url} not connected`);
-      }
-      const result = await this.client.callTool({
-        name: param.toolName,
-        arguments: param.toolArguments ?? undefined,
-      });
-      return JSON.stringify(result);
-    } catch (error) {
-      const err = new Error(
-        `Error occured while invoking MCP tool <${param.toolName}@${this.url}> -> ${(error as Error)?.message ?? 'Something went wrong'}`,
-      );
-      exceptionToSpan(err, parentOtelSpan);
-      return err.message;
-    }
+    return await ArvoOpenTelemetry.getInstance().startActiveSpan({
+      name: `MCP.invoke<${param.toolName}>`,
+      disableSpanManagement: true,
+      fn: async (span) => {
+        try {
+          span.setAttribute(OpenInference.ATTR_SPAN_KIND, OpenInferenceSpanKind.TOOL);
+          span.setStatus({
+            code: SpanStatusCode.OK,
+          });
+          logToSpan(
+            {
+              level: 'INFO',
+              message: `Invoking tool<${param.toolName}> with arguments on MCP Server@${this.url}`,
+              param: JSON.stringify(param),
+            },
+            parentOtelSpan,
+          );
+          if (!this.isConnected || !this.client) {
+            throw new Error(`MCP Server@${this.url} not connected`);
+          }
+          const result = await this.client.callTool({
+            name: param.toolName,
+            arguments: param.toolArguments ?? undefined,
+          });
+          return JSON.stringify(result);
+        } catch (error) {
+          const err = new Error(
+            `Error occured while invoking MCP tool <${param.toolName}@${this.url}> -> ${(error as Error)?.message ?? 'Something went wrong'}`,
+          );
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: err.message,
+          });
+          return err.message;
+        } finally {
+          span.end();
+        }
+      },
+    });
   }
 
   /**

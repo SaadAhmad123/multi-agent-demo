@@ -1,4 +1,8 @@
-import type { AgenticStateContext, AgenticSystemPromptBuilderParam, CreateAgenticResumableParams } from './types.js';
+import type {
+  AgenticStateContext,
+  AgenticSystemPromptBuilderParam,
+  CreateAgenticResumableParams,
+} from './types/index.js';
 import type { AgenticResumableContract, createAgenticResumableContract } from './create.contract.js';
 import {
   compareCollectedEventCounts,
@@ -20,7 +24,9 @@ import {
   integrateToolResults,
 } from './utils/conversation.js';
 import { otelLLMIntegration } from './utils/otel.llm.js';
-import type { AnyVersionedContract, LLMIntegrationParam, NonEmptyArray } from './types.js';
+import type { AnyVersionedContract } from '../types.js';
+import type { NonEmptyArray } from '../types.js';
+import type { LLMIntegrationParam } from './types/llm.integration.js';
 import { DEFAULT_AGENT_MAX_TOOL_INTERACTIONS } from './utils/defaults.js';
 
 // This is needed to satisfy the Typescript compiler that it is indeed
@@ -42,6 +48,7 @@ export const createAgenticResumable = <TContract extends AgenticResumableContrac
   maxToolInteractions,
   enableHumanInteraction,
   enableToolApproval,
+  mcp,
 }: CreateAgenticResumableParams<TContract>) => {
   const resolvedServices = resolveServiceConfig(
     services ?? null,
@@ -78,6 +85,7 @@ export const createAgenticResumable = <TContract extends AgenticResumableContrac
         const llmIntegration = async (
           messages: AgenticSystemPromptBuilderParam['messages'],
           type: LLMIntegrationParam['type'],
+          currentIteration: number,
         ) => {
           const toolApprovalConfig =
             enableToolApproval && agenticToolDefinitions.toolsToApprove.length
@@ -105,6 +113,7 @@ export const createAgenticResumable = <TContract extends AgenticResumableContrac
               maxToolInteractions: maxToolInteractions ?? DEFAULT_AGENT_MAX_TOOL_INTERACTIONS,
               toolApproval: toolApprovalConfig,
               humanInteraction: humanInteractionConfig,
+              currentToolInteractionCount: currentIteration,
             },
             parentSpanConfig,
           );
@@ -124,7 +133,7 @@ export const createAgenticResumable = <TContract extends AgenticResumableContrac
 
         if (input) {
           messages = initConversation(input.data, maxToolInteractions ?? DEFAULT_AGENT_MAX_TOOL_INTERACTIONS);
-          const { toolRequests, toolTypeCount, response } = await llmIntegration(messages, 'init');
+          const { toolRequests, toolTypeCount, response } = await llmIntegration(messages, 'init', 0);
           messages = integrateLLMResponse(messages, response);
           messages = integrateToolRequests(messages, response ? null : toolRequests);
           const _context: AgenticStateContext = {
@@ -196,7 +205,11 @@ export const createAgenticResumable = <TContract extends AgenticResumableContrac
           context.currentToolCallIteration,
           context.maxToolCallIterationAllowed,
         );
-        const { toolRequests, toolTypeCount, response } = await llmIntegration(messages, 'init');
+        const { toolRequests, toolTypeCount, response } = await llmIntegration(
+          messages,
+          'init',
+          context.currentToolCallIteration,
+        );
         messages = integrateLLMResponse(messages, response);
         messages = integrateToolRequests(messages, response ? null : toolRequests);
         const _context: AgenticStateContext = {

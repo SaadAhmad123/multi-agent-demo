@@ -1,17 +1,13 @@
 import { ArvoOpenTelemetry, exceptionToSpan, type OpenTelemetryHeaders } from 'arvo-core';
-import type {
-  AnyVersionedContract,
-  LLMIntegrationOutput,
-  LLMIntegrationParam,
-  LLMIntergration,
-  NonEmptyArray,
-} from '../types.js';
+import type { AnyVersionedContract } from '../../types.js';
+import type { NonEmptyArray } from '../../types.js';
+import type { LLMIntegrationOutput, LLMIntegrationParam, LLMIntergration } from '../types/llm.integration.js';
 import { SpanStatusCode, type Span } from '@opentelemetry/api';
 import {
   openInferenceSpanInitAttributesSetter,
   openInferenceSpanOutputAttributesSetter,
 } from './otel.openinference.js';
-import type { CreateAgenticResumableParams } from '../types.js';
+import type { CreateAgenticResumableParams } from '../types/index.js';
 import { DEFAULT_AGENT_MAX_TOOL_INTERACTIONS } from './defaults.js';
 
 export type OtelLLMIntegrationParam = Omit<LLMIntegrationParam, 'span' | 'systemPrompt'> & {
@@ -67,6 +63,7 @@ export const otelLLMIntegration: (
             description: params.description ?? null,
             span,
             outputFormat: params.outputFormat,
+            currentToolInteractionCount: params.currentToolInteractionCount,
           }) ?? null;
         openInferenceSpanInitAttributesSetter({
           messages: params.messages,
