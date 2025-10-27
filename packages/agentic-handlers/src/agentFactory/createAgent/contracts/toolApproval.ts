@@ -1,7 +1,7 @@
 import { cleanString, createSimpleArvoContract } from 'arvo-core';
 import z from 'zod';
 
-export const toolUseApprovalContract = createSimpleArvoContract({
+export const toolApprovalContract = createSimpleArvoContract({
   uri: '#/amas/agent/tool/approval',
   type: 'tool.approval',
   description: cleanString(`

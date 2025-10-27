@@ -1,11 +1,11 @@
 import { Client } from '@modelcontextprotocol/sdk/client';
 import type { Tool, ListToolsResult } from '@modelcontextprotocol/sdk/types.js';
-import { SpanStatusCode, type Span } from '@opentelemetry/api';
+import { SpanStatusCode } from '@opentelemetry/api';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { exceptionToSpan, logToSpan } from 'arvo-core';
-import type { AgenticToolDefinition } from '../createAgenticResumable/types.js';
-import type { IAgenticMCPClient } from '../createAgenticResumable/mcp.interface.js';
+import { ArvoOpenTelemetry, exceptionToSpan, logToSpan, OpenInference, OpenInferenceSpanKind } from 'arvo-core';
+import type { AgentToolDefinition, OtelInfoType } from '../AgentRunner/types.js';
+import type { IMCPConnection } from '../AgentRunner/interfaces.js';
 
 /**
  * Model Context Protocol (MCP) client implementation for connecting to and interacting with MCP servers.
@@ -15,19 +15,31 @@ import type { IAgenticMCPClient } from '../createAgenticResumable/mcp.interface.
  * connection lifecycle. It supports both Server-Sent Events (SSE) and streamable HTTP
  * transport protocols, automatically selecting the appropriate transport based on the URL.
  */
-export class MCPClient implements IAgenticMCPClient {
+export class MCPClient implements IMCPConnection {
   private client: Client | null;
   private isConnected: boolean;
   private availableTools: Tool[];
   private readonly url: () => string;
   private readonly requestInit: () => RequestInit;
 
-  constructor(param: { url: string; requestInit?: RequestInit } | (() => { url: string; requestInit?: RequestInit })) {
+  /**
+   * List of tool names that require approval before execution.
+   * Set during construction based on server configuration.
+   */
+  readonly restrictedTools: string[];
+
+  constructor(
+    param:
+      | { url: string; requestInit?: RequestInit; restrictedTools?: string[] }
+      | (() => { url: string; requestInit?: RequestInit; restrictedTools?: string[] }),
+  ) {
     this.client = null;
     this.isConnected = false;
     this.availableTools = [];
+    const resolved = typeof param === 'function' ? param() : param;
     this.url = () => (typeof param === 'function' ? param() : param).url;
     this.requestInit = () => (typeof param === 'function' ? param() : param).requestInit ?? {};
+    this.restrictedTools = resolved.restrictedTools ?? [];
   }
 
   /**
@@ -43,13 +55,14 @@ export class MCPClient implements IAgenticMCPClient {
    * @returns Promise that resolves when connection is established and tools are discovered
    * @throws {Error} Throws an error if connection fails, with details logged to the span
    */
-  async connect(parentOtelSpan: Span) {
+  async connect(parentOtelInfo: OtelInfoType): Promise<void> {
     try {
       const url = this.url();
       const requestInit = this.requestInit();
       const transport = url.includes('/mcp')
         ? new StreamableHTTPClientTransport(new URL(url), { requestInit })
         : new SSEClientTransport(new URL(url), { requestInit });
+
       this.client = new Client(
         {
           name: 'arvo-mcp-client',
@@ -61,52 +74,78 @@ export class MCPClient implements IAgenticMCPClient {
           },
         },
       );
+
       await this.client.connect(transport);
+
       logToSpan(
         {
           level: 'INFO',
-          message: `Connected to MCP Server@${this.url}`,
+          message: `Connected to MCP Server@${url}`,
         },
-        parentOtelSpan,
+        parentOtelInfo.span,
       );
+
       const tools: ListToolsResult = await this.client.listTools();
       this.availableTools = tools.tools;
       this.isConnected = true;
+
       logToSpan(
         {
           level: 'INFO',
           message: 'Available MCP tools:',
           tools: JSON.stringify(this.availableTools.map((t: Tool) => ({ name: t.name, description: t.description }))),
         },
-        parentOtelSpan,
+        parentOtelInfo.span,
       );
     } catch (error) {
-      exceptionToSpan(error as Error, parentOtelSpan);
-      parentOtelSpan.setStatus({
+      exceptionToSpan(error as Error, parentOtelInfo.span);
+      parentOtelInfo.span.setStatus({
         code: SpanStatusCode.ERROR,
         message: (error as Error)?.message,
       });
       this.isConnected = false;
-      throw new Error(`Unable to conntect to the MCP Server@${this.url()}`);
+      throw new Error(`Unable to connect to the MCP Server@${this.url()}`);
     }
   }
 
   /**
    * Retrieves the list of available tool definitions from the connected MCP server.
    *
-   * Transforms the cached MCP tools into the AgenticToolDefinition format required
-   * by the agent system. This method returns an empty array if not connected.
+   * Transforms the cached MCP tools into the AgentToolDefinition format required
+   * by the agent system. Tools listed in restrictedTools will have requires_approval set to true.
+   * This method returns an empty array if not connected.
    */
-  async getToolDefinitions(parentOtelSpan: Span) {
-    const toolDef: AgenticToolDefinition[] = [];
-    if (!this.isConnected) return toolDef;
+  async getTools(parentOtelInfo: OtelInfoType): Promise<AgentToolDefinition[]> {
+    const toolDef: AgentToolDefinition[] = [];
+
+    if (!this.isConnected) {
+      logToSpan(
+        {
+          level: 'WARNING',
+          message: `Cannot get tools - not connected to MCP Server@${this.url()}`,
+        },
+        parentOtelInfo.span,
+      );
+      return toolDef;
+    }
+
     for (const item of this.availableTools) {
       toolDef.push({
         name: item.name,
         description: item.description ?? '',
         input_schema: item.inputSchema,
+        requires_approval: this.restrictedTools.includes(item.name),
       });
     }
+
+    logToSpan(
+      {
+        level: 'INFO',
+        message: `Retrieved ${toolDef.length} tool definitions from MCP Server@${this.url()}`,
+      },
+      parentOtelInfo.span,
+    );
+
     return toolDef;
   }
 
@@ -118,31 +157,68 @@ export class MCPClient implements IAgenticMCPClient {
    * observability. If an error occurs during invocation, it returns an error message
    * rather than throwing, allowing the agent to handle tool failures gracefully.
    */
-  async invokeTool(param: { toolName: string; toolArguments?: Record<string, unknown> | null }, parentOtelSpan: Span) {
-    try {
-      logToSpan(
-        {
-          level: 'INFO',
-          message: `Invoking tool<${param.toolName}> with arguments on MCP Server@${this.url}`,
-          param: JSON.stringify(param),
-        },
-        parentOtelSpan,
-      );
-      if (!this.isConnected || !this.client) {
-        throw new Error(`MCP Server@${this.url} not connected`);
-      }
-      const result = await this.client.callTool({
-        name: param.toolName,
-        arguments: param.toolArguments ?? undefined,
-      });
-      return JSON.stringify(result);
-    } catch (error) {
-      const err = new Error(
-        `Error occured while invoking MCP tool <${param.toolName}@${this.url}> -> ${(error as Error)?.message ?? 'Something went wrong'}`,
-      );
-      exceptionToSpan(err, parentOtelSpan);
-      return err.message;
-    }
+  async invokeTool(
+    param: { name: string; arguments?: Record<string, unknown> | null },
+    parentOtelInfo: OtelInfoType,
+  ): Promise<string> {
+    return await ArvoOpenTelemetry.getInstance().startActiveSpan({
+      name: `MCP.invoke<${param.name}>`,
+      disableSpanManagement: true,
+      context: {
+        inheritFrom: 'TRACE_HEADERS',
+        traceHeaders: parentOtelInfo.headers,
+      },
+      fn: async (span) => {
+        try {
+          span.setAttribute(OpenInference.ATTR_SPAN_KIND, OpenInferenceSpanKind.TOOL);
+          span.setStatus({
+            code: SpanStatusCode.OK,
+          });
+
+          logToSpan(
+            {
+              level: 'INFO',
+              message: `Invoking tool<${param.name}> with arguments on MCP Server@${this.url()}`,
+              param: JSON.stringify(param),
+            },
+            span,
+          );
+
+          if (!this.isConnected || !this.client) {
+            throw new Error(`MCP Server@${this.url()} not connected`);
+          }
+
+          const result = await this.client.callTool({
+            name: param.name,
+            arguments: param.arguments ?? undefined,
+          });
+
+          logToSpan(
+            {
+              level: 'INFO',
+              message: `Successfully invoked tool<${param.name}> on MCP Server@${this.url()}`,
+            },
+            span,
+          );
+
+          return JSON.stringify(result);
+        } catch (error) {
+          const err = new Error(
+            `Error occurred while invoking MCP tool <${param.name}@${this.url()}> -> ${(error as Error)?.message ?? 'Something went wrong'}`,
+          );
+
+          exceptionToSpan(err, span);
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: err.message,
+          });
+
+          return err.message;
+        } finally {
+          span.end();
+        }
+      },
+    });
   }
 
   /**
@@ -152,25 +228,27 @@ export class MCPClient implements IAgenticMCPClient {
    * resets the connection state, and clears cached data. It's safe to call
    * multiple times - subsequent calls will be no-ops if already disconnected.
    */
-  async disconnect(parentOtelSpan: Span) {
+  async disconnect(parentOtelInfo: OtelInfoType): Promise<void> {
     if (this.client && this.isConnected) {
       await this.client.close();
       this.isConnected = false;
+      this.availableTools = [];
       this.client = null;
+
       logToSpan(
         {
           level: 'INFO',
-          message: `Disconnected from MCP Server@${this.url}`,
+          message: `Disconnected from MCP Server@${this.url()}`,
         },
-        parentOtelSpan,
+        parentOtelInfo.span,
       );
     } else {
       logToSpan(
         {
           level: 'INFO',
-          message: `MCP Server@${this.url} already disconnected`,
+          message: `MCP Server@${this.url()} already disconnected`,
         },
-        parentOtelSpan,
+        parentOtelInfo.span,
       );
     }
   }

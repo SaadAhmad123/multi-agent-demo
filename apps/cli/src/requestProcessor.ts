@@ -1,4 +1,4 @@
-import { humanInteractionContract, toolUseApprovalContract } from '@repo/agentic-handlers';
+import { humanReviewContract, toolApprovalContract } from '@repo/agentic-handlers';
 import {
   type ArvoErrorType,
   type ArvoEvent,
@@ -35,14 +35,14 @@ export type RequestProcessorOutput =
       type: '_HUMAN_REVIEW_REQUESTED';
       data: string;
       agentName: string;
-      event: InferVersionedArvoContract<VersionedArvoContract<typeof humanInteractionContract, '1.0.0'>>['accepts'];
+      event: InferVersionedArvoContract<VersionedArvoContract<typeof humanReviewContract, '1.0.0'>>['accepts'];
     }
   | {
       type: '_HUMAN_TOOL_USE_APPROVAL_REQUESTED';
       data: string;
       toolRequestedForApproval: string[];
       agentName: string;
-      event: InferVersionedArvoContract<VersionedArvoContract<typeof toolUseApprovalContract, '1.0.0'>>['accepts'];
+      event: InferVersionedArvoContract<VersionedArvoContract<typeof toolApprovalContract, '1.0.0'>>['accepts'];
     };
 
 export type RequestProcessorInput = {
@@ -123,8 +123,8 @@ export const requestProcessor = async (param: RequestProcessorInput) =>
 
         const event = (() => {
           if (param.isHumanReview) {
-            return createArvoEventFactory(humanInteractionContract.version('1.0.0')).emits({
-              type: 'evt.human.interaction.success',
+            return createArvoEventFactory(humanReviewContract.version('1.0.0')).emits({
+              type: 'evt.human.review.success',
               to: param.humanReviewRequestEvent.source,
               subject: param.humanReviewRequestEvent.subject,
               parentid: param.humanReviewRequestEvent.id,
@@ -135,7 +135,7 @@ export const requestProcessor = async (param: RequestProcessorInput) =>
             });
           }
           if (param.isToolApproval) {
-            return createArvoEventFactory(toolUseApprovalContract.version('1.0.0')).emits({
+            return createArvoEventFactory(toolApprovalContract.version('1.0.0')).emits({
               type: 'evt.tool.approval.success',
               to: param.toolApprovalRequestEvent.source,
               subject: param.toolApprovalRequestEvent.subject,
@@ -168,9 +168,9 @@ export const requestProcessor = async (param: RequestProcessorInput) =>
           };
         }
 
-        if (response.type === humanInteractionContract.version('1.0.0').accepts.type) {
+        if (response.type === humanReviewContract.version('1.0.0').accepts.type) {
           const hre = response as unknown as InferVersionedArvoContract<
-            VersionedArvoContract<typeof humanInteractionContract, '1.0.0'>
+            VersionedArvoContract<typeof humanReviewContract, '1.0.0'>
           >['accepts'];
           return {
             type: '_HUMAN_REVIEW_REQUESTED',
@@ -180,9 +180,9 @@ export const requestProcessor = async (param: RequestProcessorInput) =>
           };
         }
 
-        if (response.type === toolUseApprovalContract.version('1.0.0').accepts.type) {
+        if (response.type === toolApprovalContract.version('1.0.0').accepts.type) {
           const tuare = response as unknown as InferVersionedArvoContract<
-            VersionedArvoContract<typeof toolUseApprovalContract, '1.0.0'>
+            VersionedArvoContract<typeof toolApprovalContract, '1.0.0'>
           >['accepts'];
           return {
             type: '_HUMAN_TOOL_USE_APPROVAL_REQUESTED',

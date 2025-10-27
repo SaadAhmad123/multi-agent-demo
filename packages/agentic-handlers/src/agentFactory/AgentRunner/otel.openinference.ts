@@ -5,10 +5,10 @@ import {
 } from '@arizeai/openinference-semantic-conventions';
 import type {
   AgenticMessageContent,
-  AgenticToolDefinition,
-  LLMIntegrationParam,
-  LLMIntegrationOutput,
-} from '../types.js';
+  AgentLLMIntegrationOutput,
+  AgentLLMIntegrationParam,
+  AgentToolDefinition,
+} from './types.js';
 
 /**
  * Sets OpenInference-compliant attributes on an OpenTelemetry span for LLM input tracking.
@@ -20,8 +20,8 @@ import type {
  */
 export const openInferenceSpanInitAttributesSetter = (param: {
   span: Span;
-  tools: AgenticToolDefinition[];
-  messages: LLMIntegrationParam['messages'];
+  tools: AgentToolDefinition[];
+  messages: AgentLLMIntegrationParam['messages'];
   systemPrompt: string | null;
 }) => {
   param.span.setAttributes({
@@ -112,7 +112,7 @@ export const openInferenceSpanOutputAttributesSetter = ({
   response,
   toolRequests,
   usage,
-}: LLMIntegrationOutput & { span: Span }) => {
+}: AgentLLMIntegrationOutput & { span: Span }) => {
   span.setAttributes({
     [`${OpenInferenceSemanticConventions.LLM_OUTPUT_MESSAGES}.0.${OpenInferenceSemanticConventions.MESSAGE_ROLE}`]:
       'assistant',

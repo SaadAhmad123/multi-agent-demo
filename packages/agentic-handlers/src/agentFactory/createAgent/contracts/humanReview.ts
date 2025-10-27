@@ -1,9 +1,9 @@
 import { cleanString, createSimpleArvoContract } from 'arvo-core';
 import z from 'zod';
 
-export const humanInteractionContract = createSimpleArvoContract({
-  uri: '#/amas/external/human/interaction',
-  type: 'human.interaction',
+export const humanReviewContract = createSimpleArvoContract({
+  uri: '#/amas/external/human/review',
+  type: 'human.review',
   description: cleanString(`
     Use this tool to communicate directly with the humans while resolving their 
     request. 
@@ -36,5 +36,3 @@ export const humanInteractionContract = createSimpleArvoContract({
     },
   },
 });
-
-export const humanInteractionServiceDomain = 'human.interaction';

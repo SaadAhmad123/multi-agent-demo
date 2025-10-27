@@ -51,3 +51,8 @@ export class StringFormatter {
     return this.formattedToOriginalMap[str] ?? null;
   }
 }
+
+/**
+ * Create a string formatter which can convert tool names to an agent compliant format
+ */
+export const createAgentToolNameStringFormatter = () => new StringFormatter((str) => str.replaceAll('.', '_'));

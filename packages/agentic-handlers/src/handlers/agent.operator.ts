@@ -2,15 +2,17 @@ import { cleanString } from 'arvo-core';
 import { anthropicLLMCaller } from '../agentFactory/integrations/anthropic.js';
 import { calculatorAgentContract } from './agent.calculator.js';
 import type { EventHandlerFactory, IMachineMemory } from 'arvo-event-handler';
-import type { NonEmptyArray } from '../agentFactory/createAgenticResumable/types.js';
-import { withDefaultSystemPrompt } from '../agentFactory/createAgenticResumable/utils/prompts.js';
-import { createAgenticResumableContract } from '../agentFactory/createAgenticResumable/create.contract.js';
-import { createAgenticResumable } from '../agentFactory/createAgenticResumable/create.resumable.js';
+import type { NonEmptyArray } from '../agentFactory/createAgent/types.js';
+import { withDefaultContextBuilder } from '../agentFactory/prompts.js';
+import { createAgentContract } from '../agentFactory/createAgent/contract.js';
+import { createAgent } from '../agentFactory/createAgent/resumable.js';
+import { AgentRunner } from '../agentFactory/AgentRunner/index.js';
+import { astroDocsMcpAgentContract } from './agent.mcp.astro.docs.js';
 
-export const operatorAgentContract = createAgenticResumableContract({
+export const operatorAgentContract = createAgentContract({
   alias: 'operator',
   name: 'operator',
-  uri: '#/agents/resumable/operator',
+  uri: '#/agents/operator',
   description: cleanString(`
     The primary orchestration agent that serves as the system coordinator, managing all 
     specialized peer agents. This operator analyzes user requests, discovers appropriate 
@@ -21,14 +23,19 @@ export const operatorAgentContract = createAgenticResumableContract({
   `),
 });
 
+/**
+ * Operator agent that orchestrates specialized agents and manages multi-agent workflows.
+ * Serves as the primary coordinator for complex, cross-domain tasks requiring multiple specialists.
+ */
 export const operatorAgent: EventHandlerFactory<{
   memory: IMachineMemory<Record<string, unknown>>;
   humanInteractionDomain?: NonEmptyArray<string>;
-}> = ({ memory, humanInteractionDomain }) =>
-  createAgenticResumable({
-    contract: operatorAgentContract,
+}> = ({ memory, humanInteractionDomain }) => {
+  const engine = new AgentRunner({
+    name: operatorAgentContract.type,
+    llm: anthropicLLMCaller,
     maxToolInteractions: 100,
-    systemPrompt: withDefaultSystemPrompt(
+    contextBuilder: withDefaultContextBuilder(
       cleanString(`
         You are the system orchestrator managing specialized agents. Users can reach you 
         or contact specialists directly for domain-specific needs.
@@ -52,16 +59,33 @@ export const operatorAgent: EventHandlerFactory<{
         - Coordinate multiple agents when comprehensive coverage requires it
         - Iterate on plans when feedback indicates better approaches
         - Deliver complete answers, not status updates or follow-up questions
+        
+        # Available Specialists
+        
+        You can delegate tasks to the following specialist agents:
+        - Calculator Agent: For mathematical problems, computations, and numerical analysis
+        
+        When delegating to specialists, provide clear context and instructions so they can 
+        deliver complete solutions without back-and-forth.
       `),
     ),
+  });
+
+  return createAgent({
+    contract: operatorAgentContract,
+    engine,
+    memory,
     services: {
       calculatorAgent: {
         contract: calculatorAgentContract.version('1.0.0'),
         approval: true,
       },
+      astroDocsMcpAgent: astroDocsMcpAgentContract.version('1.0.0'),
     },
-    enableHumanInteraction: humanInteractionDomain ? { domains: humanInteractionDomain } : undefined,
-    enableToolApproval: humanInteractionDomain ? { domains: humanInteractionDomain } : undefined,
-    memory,
-    llm: anthropicLLMCaller,
+    humanReview: humanInteractionDomain
+      ? {
+          domains: humanInteractionDomain,
+        }
+      : undefined,
   });
+};

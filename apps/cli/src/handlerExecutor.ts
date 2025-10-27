@@ -1,11 +1,8 @@
-import {
-  calculatorAgent,
-  calculatorHandler,
-  humanInteractionServiceDomain,
-  operatorAgent,
-} from '@repo/agentic-handlers';
+import { astroDocsMcpAgent, calculatorAgent, calculatorHandler, operatorAgent } from '@repo/agentic-handlers';
 import type { ArvoEvent } from 'arvo-core';
 import { createSimpleEventBroker, type IMachineMemory } from 'arvo-event-handler';
+
+export const humanInteractionServiceDomain = 'human.interaction';
 
 /**
  * Executes an ArvoEvent through the event broker system, routing it to the appropriate handler.
@@ -26,6 +23,7 @@ export const execute = async (
       calculatorHandler(),
       operatorAgent({ memory, humanInteractionDomain }),
       calculatorAgent({ memory, humanInteractionDomain }),
+      astroDocsMcpAgent({ memory, humanInteractionDomain }),
     ],
     {
       onDomainedEvents: async ({ event }) => {
