@@ -1,15 +1,13 @@
 import OpenAI from 'openai';
-import type { AgenticToolResultMessageContent } from '../AgentRunner/types.js';
 import type {
-  LLMIntegrationParam,
-  LLMIntegrationOutput,
-  LLMIntergration,
-} from '../createAgenticResumable/types/llm.integration.js';
+  AgenticToolResultMessageContent,
+  AgentLLMIntegration,
+  AgentLLMIntegrationOutput,
+  AgentLLMIntegrationParam,
+} from '../AgentRunner/types.js';
 import { SemanticConventions as OpenInferenceSemanticConventions } from '@arizeai/openinference-semantic-conventions';
 import type { ChatModel } from 'openai/resources/shared.mjs';
 import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/index.mjs';
-import type { StringFormatter } from '../createAgenticResumable/utils/formatter.js';
-import { createAgentToolNameStringFormatter } from '../createAgenticResumable/index.js';
 import { tryParseJson } from './utils/jsonParse.js';
 
 /**
@@ -26,8 +24,7 @@ import { tryParseJson } from './utils/jsonParse.js';
  * @returns Array of OpenAI-compatible chat completion messages
  */
 const formatMessagesForOpenAI = (
-  messages: LLMIntegrationParam['messages'],
-  toolNameFormatter: StringFormatter,
+  messages: AgentLLMIntegrationParam['messages'],
   systemPrompt?: string,
 ): ChatCompletionMessageParam[] => {
   const formatedMessages: ChatCompletionMessageParam[] = [];
@@ -89,7 +86,7 @@ const formatMessagesForOpenAI = (
               type: 'function',
               id: item.content.id,
               function: {
-                name: toolNameFormatter.format(item.content.name),
+                name: item.content.name,
                 arguments: JSON.stringify(item.content.input),
               },
             },
@@ -126,17 +123,14 @@ const formatMessagesForOpenAI = (
  *
  * @throws {Error} If OpenAI provides neither a response nor tool requests
  */
-export const openaiLLMCaller: LLMIntergration = async ({
-  messages,
-  toolDefinitions,
-  systemPrompt,
-  span,
-  outputFormat,
-}) => {
+export const openaiLLMCaller: AgentLLMIntegration = async (
+  { messages, tools, systemPrompt, outputFormat },
+  { span },
+) => {
   /**
    * Configure model and invocation parameters.
    */
-  const llmModel: ChatModel = 'gpt-4o-mini';
+  const llmModel: ChatModel = 'gpt-4o';
   const llmInvocationParams = {
     temperature: 0.5,
     maxTokens: 4096,
@@ -155,12 +149,11 @@ export const openaiLLMCaller: LLMIntergration = async ({
 
   // Convert tool definitions to OpenAI function format
   const toolDef: ChatCompletionTool[] = [];
-  const toolNameFormatter = createAgentToolNameStringFormatter();
-  for (const item of toolDefinitions) {
+  for (const item of tools) {
     toolDef.push({
       type: 'function',
       function: {
-        name: toolNameFormatter.format(item.name),
+        name: item.name,
         description: item.description,
         parameters: item.input_schema,
       },
@@ -168,7 +161,7 @@ export const openaiLLMCaller: LLMIntergration = async ({
   }
 
   // Format conversation history for OpenAI's specific requirements
-  const formattedMessages = formatMessagesForOpenAI(messages, toolNameFormatter, systemPrompt ?? undefined);
+  const formattedMessages = formatMessagesForOpenAI(messages, systemPrompt ?? undefined);
 
   const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
@@ -187,7 +180,7 @@ export const openaiLLMCaller: LLMIntergration = async ({
    * Extracts and processes tool requests from OpenAI's response.
    * Converts function calls back to Arvo event format and tracks usage.
    */
-  const toolRequests: NonNullable<LLMIntegrationOutput['toolRequests']> = [];
+  const toolRequests: NonNullable<AgentLLMIntegrationOutput['toolRequests']> = [];
   const toolTypeCount: Record<string, number> = {};
 
   if (
@@ -196,7 +189,7 @@ export const openaiLLMCaller: LLMIntergration = async ({
   ) {
     for (const item of message.choices[0]?.message.tool_calls ?? []) {
       if (item.type === 'function') {
-        const actualType = toolNameFormatter.reverse(item.function.name) ?? item.function.name;
+        const actualType = item.function.name;
         toolRequests.push({
           type: actualType,
           id: item.id,
@@ -220,27 +213,28 @@ export const openaiLLMCaller: LLMIntergration = async ({
     finalResponse = `${message.choices[0].message.content}\n\n[Response truncated: Maximum token limit reached]`;
   }
 
-  // Structure response according to Arvo's agentic LLM output format
-  const data: LLMIntegrationOutput = {
-    toolRequests: toolRequests.length ? toolRequests : null,
+  const llmUsage: NonNullable<AgentLLMIntegrationOutput['usage']> = {
+    tokens: {
+      prompt: message.usage?.prompt_tokens ?? 0,
+      completion: message.usage?.completion_tokens ?? 0,
+    },
+  };
+
+  if (toolRequests.length) {
+    return {
+      toolRequests,
+      response: null,
+      usage: llmUsage,
+    };
+  }
+
+  return {
+    toolRequests: null,
     response: finalResponse
       ? outputFormat && tryParseJson(finalResponse)
         ? outputFormat.parse(JSON.parse(finalResponse))
         : finalResponse
-      : null,
-    toolTypeCount,
-    usage: {
-      tokens: {
-        prompt: message.usage?.prompt_tokens ?? 0,
-        completion: message.usage?.completion_tokens ?? 0,
-      },
-    },
+      : '',
+    usage: llmUsage,
   };
-
-  // Validate that OpenAI provided a usable response
-  if (!data.response && !data.toolRequests) {
-    data.response = 'Something went wrong. Unable to generate response or tool request. You can retry if you want';
-  }
-
-  return data;
 };

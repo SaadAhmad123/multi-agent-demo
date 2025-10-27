@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { NonEmptyArray } from '../types.js';
+import type { NonEmptyArray } from '../createAgent/types.js';
 
 export const AgentToolResultMessageContentSchema = z.object({
   type: z.literal('tool_result'),
@@ -42,6 +42,7 @@ export const AgentToolDefinitionSchema = z.object({
   description: z.string(),
   input_schema: z.record(z.string(), z.any()),
   requires_approval: z.boolean().optional(),
+  priority: z.number().optional(),
 });
 
 export const AgentRunnerLifecycle = {

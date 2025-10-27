@@ -1,8 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { SemanticConventions as OpenInferenceSemanticConventions } from '@arizeai/openinference-semantic-conventions';
-import type { AgenticToolDefinition } from '../AgentRunner/types.js';
-import type { LLMIntegrationOutput, LLMIntergration } from '../createAgenticResumable/types/llm.integration.js';
-import { createAgentToolNameStringFormatter } from '../createAgenticResumable/index.js';
+import type { AgentLLMIntegration, AgentLLMIntegrationOutput } from '../AgentRunner/types.js';
 import { tryParseJson } from './utils/jsonParse.js';
 
 /**
@@ -22,13 +20,10 @@ import { tryParseJson } from './utils/jsonParse.js';
  *
  * @throws {Error} When Claude provides neither a response nor tool requests
  */
-export const anthropicLLMCaller: LLMIntergration = async ({
-  messages,
-  outputFormat,
-  toolDefinitions,
-  systemPrompt,
-  span,
-}) => {
+export const anthropicLLMCaller: AgentLLMIntegration = async (
+  { messages, outputFormat, tools, systemPrompt },
+  { span },
+) => {
   const llmModel: Anthropic.Messages.Model = 'claude-sonnet-4-0';
   const llmInvocationParams = {
     temperature: 0.5,
@@ -47,10 +42,13 @@ export const anthropicLLMCaller: LLMIntergration = async ({
   });
 
   // Convert tool names to Anthropic-compatible format
-  const toolDef: AgenticToolDefinition[] = [];
-  const toolNameFormatter = createAgentToolNameStringFormatter();
-  for (const item of toolDefinitions) {
-    toolDef.push({ ...item, name: toolNameFormatter.format(item.name) });
+  const toolDef: Array<{
+    name: string;
+    description: string;
+    input_schema: Record<string, unknown>;
+  }> = [];
+  for (const { name, description, input_schema } of tools) {
+    toolDef.push({ name, description, input_schema });
   }
 
   /**
@@ -64,12 +62,6 @@ export const anthropicLLMCaller: LLMIntergration = async ({
         return {
           type: c.type,
           text: c.content,
-        };
-      }
-      if (c.type === 'tool_use') {
-        return {
-          ...c,
-          name: toolNameFormatter.format(c.name),
         };
       }
       return c;
@@ -96,13 +88,13 @@ export const anthropicLLMCaller: LLMIntergration = async ({
    * Extracts and processes tool requests from Claude's response.
    * Converts tool names back to Arvo format and tracks usage counts.
    */
-  const toolRequests: NonNullable<LLMIntegrationOutput['toolRequests']> = [];
+  const toolRequests: NonNullable<AgentLLMIntegrationOutput['toolRequests']> = [];
   const toolTypeCount: Record<string, number> = {};
 
   if (message.stop_reason === 'tool_use') {
     for (const item of message.content) {
       if (item.type === 'tool_use') {
-        const actualType = toolNameFormatter.reverse(item.name) ?? item.name; // The system understands the original tool name no the AI tool name
+        const actualType = item.name;
         toolRequests.push({
           type: actualType,
           id: item.id,
@@ -132,27 +124,28 @@ export const anthropicLLMCaller: LLMIntergration = async ({
         : '[Response truncated: Maximum token limit reached]';
   }
 
-  // Structure response according to Arvo's agentic LLM output format
-  const data: LLMIntegrationOutput = {
-    toolRequests: toolRequests.length ? toolRequests : null,
+  const llmUsage: NonNullable<AgentLLMIntegrationOutput['usage']> = {
+    tokens: {
+      prompt: message.usage.input_tokens,
+      completion: message.usage.output_tokens,
+    },
+  };
+
+  if (toolRequests.length) {
+    return {
+      toolRequests,
+      response: null,
+      usage: llmUsage,
+    };
+  }
+
+  return {
+    toolRequests: null,
     response: finalResponse
       ? outputFormat && tryParseJson(finalResponse)
         ? outputFormat.parse(JSON.parse(finalResponse))
         : finalResponse
-      : null,
-    toolTypeCount,
-    usage: {
-      tokens: {
-        prompt: message.usage.input_tokens,
-        completion: message.usage.output_tokens,
-      },
-    },
+      : '',
+    usage: llmUsage,
   };
-
-  // Validate that Claude provided a usable response
-  if (!data.response && !data.toolRequests) {
-    data.response = 'Something went wrong. Unable to generate response or tool request. You can retry if you want';
-  }
-
-  return data;
 };

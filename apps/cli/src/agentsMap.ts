@@ -1,4 +1,4 @@
-import { operatorAgentContract, calculatorAgentContract } from '@repo/agentic-handlers';
+import { operatorAgentContract, calculatorAgentContract, astroDocsMcpAgentContract } from '@repo/agentic-handlers';
 import type { VersionedArvoContract } from 'arvo-core';
 
 /**
@@ -12,7 +12,7 @@ import type { VersionedArvoContract } from 'arvo-core';
  * ```
  */
 export const agentMap = Object.fromEntries(
-  [operatorAgentContract, calculatorAgentContract].map((item) => [
+  [operatorAgentContract, calculatorAgentContract, astroDocsMcpAgentContract].map((item) => [
     item.metadata.config.alias,
     { contract: item.version('1.0.0') },
   ]),

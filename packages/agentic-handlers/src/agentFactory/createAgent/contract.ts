@@ -1,9 +1,14 @@
 import z from 'zod';
 import { cleanString, createArvoOrchestratorContract } from 'arvo-core';
-import { AgentMessageContentSchema } from '../AgentRunner/schemas.js';
-import { DEFAULT_AGENT_OUTPUT_FORMAT } from './utils/defaults.js';
+import { AgentMessageSchema } from '../AgentRunner/schemas.js';
 
-export type CreateAgenticResumableContractParams<
+/**
+ * Default output format for agents that don't specify a custom output schema.
+ * Provides a simple string response format for basic conversational agents.
+ */
+export const DEFAULT_AGENT_OUTPUT_FORMAT = z.object({ response: z.string() });
+
+export type CreateAgentContractParams<
   TUri extends string = string,
   TName extends string = string,
   TOutput extends z.AnyZodObject = z.AnyZodObject,
@@ -38,9 +43,7 @@ export type CreateAgenticResumableContractParams<
   }) => string;
 };
 
-const buildAgentContractDescription: NonNullable<CreateAgenticResumableContractParams['descriptionBuilder']> = (
-  param,
-) => {
+const buildAgentContractDescription: NonNullable<CreateAgentContractParams['descriptionBuilder']> = (param) => {
   return cleanString(`
     I am an AI Agent.
     ${param.description ? `# Capabilities\n${param.description}` : '# Capabilities\nAsk me directly for a summary of what I can do.'}
@@ -62,12 +65,12 @@ const buildAgentContractDescription: NonNullable<CreateAgenticResumableContractP
   `);
 };
 
-export const createAgenticResumableContract = <
+export const createAgentContract = <
   TUri extends string = string,
   TName extends string = string,
   TOutput extends z.AnyZodObject = typeof DEFAULT_AGENT_OUTPUT_FORMAT,
 >(
-  config: CreateAgenticResumableContractParams<TUri, TName, TOutput>,
+  config: CreateAgentContractParams<TUri, TName, TOutput>,
 ) =>
   createArvoOrchestratorContract({
     uri: config.uri as TUri,
@@ -93,17 +96,11 @@ export const createAgenticResumableContract = <
             `),
             ),
           message: z.string(),
-          additionalSystemPrompt: z.string().optional(),
         }),
         complete: z.object({
           ...(config.enableMessageHistoryInResponse
             ? {
-                messages: z
-                  .object({
-                    role: z.enum(['user', 'assistant']),
-                    content: AgentMessageContentSchema.array(),
-                  })
-                  .array(),
+                messages: AgentMessageSchema.array(),
               }
             : {}),
           output: (config.output ?? DEFAULT_AGENT_OUTPUT_FORMAT) as TOutput,
@@ -111,7 +108,7 @@ export const createAgenticResumableContract = <
       },
     },
     metadata: {
-      contractSpecificType: 'AgenticResumable',
+      contractSpecificType: 'Agent',
       config: {
         ...config,
         output: config.output ?? DEFAULT_AGENT_OUTPUT_FORMAT,
@@ -120,8 +117,8 @@ export const createAgenticResumableContract = <
     },
   });
 
-export type AgenticResumableContract<
+export type AgentContract<
   TUri extends string = string,
   TName extends string = string,
   TOutput extends z.AnyZodObject = typeof DEFAULT_AGENT_OUTPUT_FORMAT,
-> = ReturnType<typeof createAgenticResumableContract<TUri, TName, TOutput>>;
+> = ReturnType<typeof createAgentContract<TUri, TName, TOutput>>;

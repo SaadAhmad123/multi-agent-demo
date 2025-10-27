@@ -1,7 +1,11 @@
-import type { AgenticToolDefinition, OtelInfoType } from './types.js';
+import type { AgentToolDefinition, OtelInfoType } from './types.js';
 
-export interface IAgentMCPClient {
+export interface IMCPConnection {
   connect: (parentSpan: OtelInfoType) => Promise<void>;
+
+  // The tool names which require approval
+  // This should be calculated from the constructor
+  restrictedTools: string[];
 
   invokeTool: (
     param: { name: string; arguments?: Record<string, unknown> | null },
@@ -10,14 +14,13 @@ export interface IAgentMCPClient {
 
   disconnect: (parentSpan: OtelInfoType) => Promise<void>;
 
-  getToolDefinitions: (parentSpan: OtelInfoType) => Promise<AgenticToolDefinition[]>;
+  getTools: (parentSpan: OtelInfoType) => Promise<AgentToolDefinition[]>;
 }
 
-export interface IAgentToolApprovalRegister {
-  setBatched(agent: string, approvals: Record<string, boolean>, parentSpan: OtelInfoType): Promise<void>;
-
+export interface IToolApprovalCache {
+  setBatched(source: string, approvals: Record<string, boolean>, parentSpan: OtelInfoType): Promise<void>;
   getBatched(
-    agent: string,
+    source: string,
     tools: string[],
     parentSpan: OtelInfoType,
   ): Promise<Record<string, { value: boolean; comment?: string }>>;
