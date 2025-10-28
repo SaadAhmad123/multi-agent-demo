@@ -34,6 +34,10 @@ type AgentContext = {
   toolInteractionCount: number;
   maxToolInteractionCount: number;
   toolTypeCount: Record<string, number>;
+  delegatedBy: {
+    alias: string | null;
+    source: string;
+  } | null;
 };
 
 export const createAgent = <TContract extends AgentContract>({
@@ -54,7 +58,6 @@ export const createAgent = <TContract extends AgentContract>({
     },
     { humanReviewContract: humanReviewVersionedContract, toolApprovalContract: toolApprovalVersionedContract },
   );
-
   return createArvoResumable({
     contracts: {
       self: contract as ResolveSelfContractType<TContract>,
@@ -128,6 +131,12 @@ export const createAgent = <TContract extends AgentContract>({
             toolInteractionCount: result.toolInteractions.current,
             toolTypeCount: calculateToolTypeCounts(result.toolRequests),
             maxToolInteractionCount: result.toolInteractions.max,
+            delegatedBy: input.data.delagationSource
+              ? {
+                  alias: input.data.delagationSource.alias ?? null,
+                  source: input.data.delagationSource.id,
+                }
+              : null,
           };
 
           return {
@@ -190,7 +199,7 @@ export const createAgent = <TContract extends AgentContract>({
                 source: contracts.self.accepts.type,
                 description: contract.description ?? '',
               },
-              delegatedBy: null,
+              delegatedBy: context.delegatedBy,
               outputFormat: contract.metadata.config.outputFormat ?? null,
               toolApproval: toolDefinitions.toolApproval,
               humanReview: toolDefinitions.humanReview,

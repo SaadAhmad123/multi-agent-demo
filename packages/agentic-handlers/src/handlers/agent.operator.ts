@@ -8,6 +8,11 @@ import { createAgentContract } from '../agentFactory/createAgent/contract.js';
 import { createAgent } from '../agentFactory/createAgent/resumable.js';
 import { AgentRunner } from '../agentFactory/AgentRunner/index.js';
 import { astroDocsMcpAgentContract } from './agent.mcp.astro.docs.js';
+import { fetchWebMcpAgentContract } from './agent.mcp.fetch.web.js';
+import { findDomainMcpAgentContract } from './agent.mcp.findadomain.js';
+import { githubMcpAgentContract } from './agent.mcp.github.js';
+import { zapierGmailAndWeatherMcpAgentContract } from './agent.mcp.zapier.gmailandweather.js';
+import { zapierGoogleDocsMcpAgentContract } from './agent.mcp.zapier.googledocs.js';
 
 export const operatorAgentContract = createAgentContract({
   alias: 'operator',
@@ -81,6 +86,11 @@ export const operatorAgent: EventHandlerFactory<{
         approval: true,
       },
       astroDocsMcpAgent: astroDocsMcpAgentContract.version('1.0.0'),
+      fetchWebMcpAgent: fetchWebMcpAgentContract.version('1.0.0'),
+      findDomainMcpAgent: findDomainMcpAgentContract.version('1.0.0'),
+      githubMcpAgent: githubMcpAgentContract.version('1.0.0'),
+      zapierGmailAndWeatherMcpAgent: zapierGmailAndWeatherMcpAgentContract.version('1.0.0'),
+      zapierGoogleDocsMcpAgent: zapierGoogleDocsMcpAgentContract.version('1.0.0'),
     },
     humanReview: humanInteractionDomain
       ? {

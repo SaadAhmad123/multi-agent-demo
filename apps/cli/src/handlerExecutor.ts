@@ -1,4 +1,14 @@
-import { astroDocsMcpAgent, calculatorAgent, calculatorHandler, operatorAgent } from '@repo/agentic-handlers';
+import {
+  findDomainMcpAgent,
+  astroDocsMcpAgent,
+  calculatorAgent,
+  calculatorHandler,
+  operatorAgent,
+  githubMcpAgent,
+  zapierGmailAndWeatherMcpAgent,
+  zapierGoogleDocsMcpAgent,
+  fetchWebMcpAgent,
+} from '@repo/agentic-handlers';
 import type { ArvoEvent } from 'arvo-core';
 import { createSimpleEventBroker, type IMachineMemory } from 'arvo-event-handler';
 
@@ -24,6 +34,11 @@ export const execute = async (
       operatorAgent({ memory, humanInteractionDomain }),
       calculatorAgent({ memory, humanInteractionDomain }),
       astroDocsMcpAgent({ memory, humanInteractionDomain }),
+      githubMcpAgent({ memory }),
+      zapierGmailAndWeatherMcpAgent({ memory }),
+      zapierGoogleDocsMcpAgent({ memory, humanInteractionDomain }),
+      findDomainMcpAgent({ memory }),
+      fetchWebMcpAgent({ memory }),
     ],
     {
       onDomainedEvents: async ({ event }) => {

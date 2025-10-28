@@ -29,7 +29,6 @@ export const calculatorAgent: EventHandlerFactory<{
   const engine = new AgentRunner({
     name: calculatorAgentContract.type,
     llm: anthropicLLMCaller,
-    maxToolInteractions: 10,
     contextBuilder: withDefaultContextBuilder(
       cleanString(`
         You are a mathematics specialist solving problems from natural language.

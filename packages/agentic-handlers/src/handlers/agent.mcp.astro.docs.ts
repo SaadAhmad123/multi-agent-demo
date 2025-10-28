@@ -7,6 +7,7 @@ import { AgentRunner } from '../agentFactory/AgentRunner/index.js';
 import type { EventHandlerFactory, IMachineMemory } from 'arvo-event-handler';
 import type { NonEmptyArray } from '../agentFactory/createAgent/types.js';
 import { withDefaultContextBuilder } from '../agentFactory/prompts.js';
+import { fetchWebMcpAgentContract } from './agent.mcp.fetch.web.js';
 
 export const astroDocsMcpAgentContract = createAgentContract({
   alias: 'emma',
@@ -37,7 +38,6 @@ export const astroDocsMcpAgent: EventHandlerFactory<{
   const engine = new AgentRunner({
     name: astroDocsMcpAgentContract.type,
     llm: openaiLLMCaller,
-    maxToolInteractions: 20,
     mcp: mcpClient,
     contextBuilder: withDefaultContextBuilder(
       cleanString(`
@@ -76,6 +76,9 @@ export const astroDocsMcpAgent: EventHandlerFactory<{
     contract: astroDocsMcpAgentContract,
     engine,
     memory,
+    services: {
+      fetchWebMcpAgent: fetchWebMcpAgentContract.version('1.0.0'),
+    },
     humanReview: humanInteractionDomain
       ? {
           domains: humanInteractionDomain,

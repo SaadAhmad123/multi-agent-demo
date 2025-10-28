@@ -1,39 +1,69 @@
-// import { createMcpAgent } from '../agentFactory/createMcpAgent.js';
-// import { MCPClient } from '../agentFactory/integrations/MCPClient.js';
-// import { cleanString } from 'arvo-core';
-// import { openaiLLMCaller } from '../agentFactory/integrations/openai.js';
+import { MCPClient } from '../agentFactory/integrations/MCPClient.js';
+import { cleanString } from 'arvo-core';
+import { openaiLLMCaller } from '../agentFactory/integrations/openai.js';
+import { createAgentContract } from '../agentFactory/createAgent/contract.js';
+import { createAgent } from '../agentFactory/createAgent/resumable.js';
+import { AgentRunner } from '../agentFactory/AgentRunner/index.js';
+import type { EventHandlerFactory, IMachineMemory } from 'arvo-event-handler';
+import { withDefaultContextBuilder } from '../agentFactory/prompts.js';
+import type { NonEmptyArray } from '../agentFactory/createAgent/types.js';
 
-// export const zapierGoogleDocsMcpAgent = createMcpAgent({
-//   alias: 'troy',
-//   name: 'zapier.googledocs',
-//   description: cleanString(`
-//     Google Docs specialist. Creates, reads, updates, and searches documents in Google Drive.
-//   `),
-//   systemPrompt: () =>
-//     cleanString(`
-//     You are a Google Docs integration specialist via Zapier MCP.
+export const zapierGoogleDocsMcpAgentContract = createAgentContract({
+  alias: 'troy',
+  name: 'zapier.googledocs',
+  uri: '#/agents/zapier.googledocs',
+  description: cleanString(`
+    Google Docs specialist. Creates, reads, updates, and searches documents in Google Drive.
+  `),
+});
 
-//     # Your Capabilities
+export const zapierGoogleDocsMcpAgent: EventHandlerFactory<{
+  memory: IMachineMemory<Record<string, unknown>>;
+  humanInteractionDomain: NonEmptyArray<string>;
+}> = ({ memory, humanInteractionDomain }) => {
+  const mcpClient = new MCPClient(() => ({ url: process.env.ZAPIER_MCP_INTEGRATION_URL_GOOGLE_DOCS || 'no url' }));
 
-//     **Google Docs:** Create, read, update, search, and manage documents in Google Drive
+  const engine = new AgentRunner({
+    name: zapierGoogleDocsMcpAgentContract.type,
+    llm: openaiLLMCaller,
+    mcp: mcpClient,
+    contextBuilder: withDefaultContextBuilder(
+      cleanString(`
+        You are a Google Docs integration specialist via Zapier MCP.
 
-//     # Response Strategy
+        # Your Capabilities
 
-//     **Execute Immediately** for straightforward requests within your capabilities.
-//     For multi-step document operations, execute sequentially and confirm each step.
+        **Google Docs:** Create, read, update, search, and manage documents in Google Drive
 
-//     # Critical Guidelines
+        # Response Strategy
 
-//     **Document Operations:** Use specific search terms. Ensure proper formatting for
-//     created/updated content. Provide document links when available.
+        **Execute Immediately** for straightforward requests within your capabilities.
+        For multi-step document operations, execute sequentially and confirm each step.
 
-//     **Error Handling:** If operations fail, explain clearly and suggest alternatives.
+        # Critical Guidelines
 
-//     **Scope Boundary:** You handle ONLY Google Docs operations.
-//     For calculations, email, weather, web research, or other capabilities, respond:
-//     "This requires capabilities beyond my specialization. Please ask @operator to
-//     coordinate the appropriate agents for this task."
-//   `),
-//   mcpClient: new MCPClient(() => ({ url: process.env.ZAPIER_MCP_INTEGRATION_URL_GOOGLE_DOCS || 'no url' })),
-//   agenticLLMCaller: openaiLLMCaller,
-// });
+        **Document Operations:** Use specific search terms. Ensure proper formatting for
+        created/updated content. Provide document links when available.
+
+        **Error Handling:** If operations fail, explain clearly and suggest alternatives.
+
+        **Scope Boundary:** You handle ONLY Google Docs operations.
+        For calculations, email, weather, web research, or other capabilities, respond:
+        "This requires capabilities beyond my specialization. Please ask @operator to
+        coordinate the appropriate agents for this task."
+      `),
+    ),
+  });
+
+  return createAgent({
+    contract: zapierGoogleDocsMcpAgentContract,
+    engine,
+    memory,
+    services: {},
+    humanReview: humanInteractionDomain
+      ? {
+          domains: humanInteractionDomain,
+        }
+      : undefined,
+  });
+};

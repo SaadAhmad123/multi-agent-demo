@@ -53,7 +53,10 @@ export class AgentRunner {
     this.contextBuilder = param.contextBuilder;
     this.mcp = param.mcp ?? null;
     this.approvalCache = param.approvalCache ?? null;
-    this.maxToolInteractions = Math.max(param.maxToolInteractions ?? 0, 1);
+    this.maxToolInteractions =
+      param.maxToolInteractions !== null && param.maxToolInteractions !== undefined
+        ? Math.max(param.maxToolInteractions, 1)
+        : 5;
   }
 
   /**

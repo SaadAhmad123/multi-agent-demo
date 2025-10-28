@@ -1,3 +1,11 @@
+export { zapierGoogleDocsMcpAgent, zapierGoogleDocsMcpAgentContract } from './handlers/agent.mcp.zapier.googledocs.js';
+export {
+  zapierGmailAndWeatherMcpAgent,
+  zapierGmailAndWeatherMcpAgentContract,
+} from './handlers/agent.mcp.zapier.gmailandweather.js';
+export { githubMcpAgent, githubMcpAgentContract } from './handlers/agent.mcp.github.js';
+export { findDomainMcpAgent, findDomainMcpAgentContract } from './handlers/agent.mcp.findadomain.js';
+export { fetchWebMcpAgent, fetchWebMcpAgentContract } from './handlers/agent.mcp.fetch.web.js';
 export { astroDocsMcpAgent, astroDocsMcpAgentContract } from './handlers/agent.mcp.astro.docs.js';
 export {
   toolApprovalContract,

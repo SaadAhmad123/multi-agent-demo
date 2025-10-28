@@ -1,4 +1,13 @@
-import { operatorAgentContract, calculatorAgentContract, astroDocsMcpAgentContract } from '@repo/agentic-handlers';
+import {
+  operatorAgentContract,
+  calculatorAgentContract,
+  astroDocsMcpAgentContract,
+  fetchWebMcpAgentContract,
+  findDomainMcpAgentContract,
+  githubMcpAgentContract,
+  zapierGmailAndWeatherMcpAgentContract,
+  zapierGoogleDocsMcpAgentContract,
+} from '@repo/agentic-handlers';
 import type { VersionedArvoContract } from 'arvo-core';
 
 /**
@@ -12,10 +21,16 @@ import type { VersionedArvoContract } from 'arvo-core';
  * ```
  */
 export const agentMap = Object.fromEntries(
-  [operatorAgentContract, calculatorAgentContract, astroDocsMcpAgentContract].map((item) => [
-    item.metadata.config.alias,
-    { contract: item.version('1.0.0') },
-  ]),
+  [
+    operatorAgentContract,
+    calculatorAgentContract,
+    astroDocsMcpAgentContract,
+    fetchWebMcpAgentContract,
+    findDomainMcpAgentContract,
+    githubMcpAgentContract,
+    zapierGmailAndWeatherMcpAgentContract,
+    zapierGoogleDocsMcpAgentContract,
+  ].map((item) => [item.metadata.config.alias, { contract: item.version('1.0.0') }]),
   // biome-ignore lint/suspicious/noExplicitAny: Needs to general
 ) as Record<string, { contract: VersionedArvoContract<any, any> }>;
 
