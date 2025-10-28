@@ -6,7 +6,7 @@ import { createAgent } from '../agentFactory/createAgent/resumable.js';
 import { AgentRunner } from '../agentFactory/AgentRunner/index.js';
 import type { EventHandlerFactory, IMachineMemory } from 'arvo-event-handler';
 import type { NonEmptyArray } from '../agentFactory/createAgent/types.js';
-import { withDefaultContextBuilder } from '../agentFactory/prompts.js';
+import { withDefaultContextBuilder } from '../agentFactory/createAgent/prompts.js';
 import { fetchWebMcpAgentContract } from './agent.mcp.fetch.web.js';
 
 export const astroDocsMcpAgentContract = createAgentContract({

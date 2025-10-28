@@ -8,7 +8,7 @@ import type {
 import { SemanticConventions as OpenInferenceSemanticConventions } from '@arizeai/openinference-semantic-conventions';
 import type { ChatModel } from 'openai/resources/shared.mjs';
 import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/index.mjs';
-import { tryParseJson } from './utils/jsonParse.js';
+import { tryParseJson } from './utils.jsonParse.js';
 
 /**
  * Converts Arvo agentic messages to OpenAI-compatible chat completion format.

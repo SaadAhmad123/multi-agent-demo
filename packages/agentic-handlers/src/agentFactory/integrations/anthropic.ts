@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { SemanticConventions as OpenInferenceSemanticConventions } from '@arizeai/openinference-semantic-conventions';
 import type { AgentLLMIntegration, AgentLLMIntegrationOutput } from '../AgentRunner/types.js';
-import { tryParseJson } from './utils/jsonParse.js';
+import { tryParseJson } from './utils.jsonParse.js';
 
 /**
  * Anthropic Claude integration for agentic LLM calls within Arvo orchestrators.

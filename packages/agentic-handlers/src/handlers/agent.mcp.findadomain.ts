@@ -5,7 +5,7 @@ import { createAgentContract } from '../agentFactory/createAgent/contract.js';
 import { createAgent } from '../agentFactory/createAgent/resumable.js';
 import { AgentRunner } from '../agentFactory/AgentRunner/index.js';
 import type { EventHandlerFactory, IMachineMemory } from 'arvo-event-handler';
-import { withDefaultContextBuilder } from '../agentFactory/prompts.js';
+import { withDefaultContextBuilder } from '../agentFactory/createAgent/prompts.js';
 
 export const findDomainMcpAgentContract = createAgentContract({
   alias: 'steve',

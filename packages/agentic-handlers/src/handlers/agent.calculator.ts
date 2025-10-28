@@ -6,7 +6,7 @@ import { createAgentContract } from '../agentFactory/createAgent/contract.js';
 import type { NonEmptyArray } from '../agentFactory/createAgent/types.js';
 import { AgentRunner } from '../agentFactory/AgentRunner/index.js';
 import { createAgent } from '../agentFactory/createAgent/resumable.js';
-import { withDefaultContextBuilder } from '../agentFactory/prompts.js';
+import { withDefaultContextBuilder } from '../agentFactory/createAgent/prompts.js';
 
 export const calculatorAgentContract = createAgentContract({
   alias: 'aleej',

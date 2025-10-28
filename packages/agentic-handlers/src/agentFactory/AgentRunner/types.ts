@@ -40,6 +40,7 @@ export type AgentRunnerExecuteParam = {
     alias: string | null;
     source: string;
     description: string;
+    agnetic_source: string;
   };
   delegatedBy: {
     alias: string | null;
@@ -78,7 +79,7 @@ export type AgentConfiguredToolDefinition = AgentToolDefinition & {
 
 export type AgentContextBuilderParam = Omit<
   AgentRunnerExecuteParam,
-  'tools' | 'toolInteractions' | 'toolApproval' | 'humanReview'
+  'tools' | 'toolInteractions' | 'toolApproval' | 'humanReview' | 'selfInformation'
 > & {
   tools: Array<AgentConfiguredToolDefinition>;
   toolInteractions: {

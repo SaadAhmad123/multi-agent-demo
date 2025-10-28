@@ -17,7 +17,7 @@ import {
 import type { AgentMessage, AgentToolDefinition, AgentToolRequest } from '../AgentRunner/types.js';
 import { toolApprovalContract } from './contracts/toolApproval.js';
 import { humanReviewContract } from './contracts/humanReview.js';
-import { createAgentToolNameStringFormatter } from '../AgentRunner/formatter.js';
+import { createAgentToolNameStringFormatter } from './formatter.js';
 
 // a ArvoOrchestratorContract under the hood.
 type ResolveSelfContractType<TContract extends AgentContract> = ReturnType<
@@ -108,6 +108,7 @@ export const createAgent = <TContract extends AgentContract>({
                   alias: contract.metadata.config.alias ?? null,
                   source: contracts.self.accepts.type,
                   description: contract.description ?? '',
+                  agnetic_source: toolFormatter.format(contracts.self.accepts.type),
                 },
                 delegatedBy: input.data.delagationSource
                   ? {
@@ -198,6 +199,7 @@ export const createAgent = <TContract extends AgentContract>({
                 alias: contract.metadata.config.alias ?? null,
                 source: contracts.self.accepts.type,
                 description: contract.description ?? '',
+                agnetic_source: toolFormatter.format(contracts.self.accepts.type),
               },
               delegatedBy: context.delegatedBy,
               outputFormat: contract.metadata.config.outputFormat ?? null,

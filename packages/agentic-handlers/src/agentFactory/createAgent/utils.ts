@@ -86,9 +86,7 @@ export const resolveServiceToolDefinition = (
   };
 };
 
-/**
- * Calculates tool type counts from tool requests.
- */
+/** Calculates tool type counts from tool requests. */
 export const calculateToolTypeCounts = (toolRequests: AgentToolRequest[] | null): Record<string, number> => {
   if (!toolRequests) return {};
 
@@ -101,9 +99,7 @@ export const calculateToolTypeCounts = (toolRequests: AgentToolRequest[] | null)
   );
 };
 
-/**
- * Converts tool requests to service enqueue parameters.
- */
+/** Converts tool requests to service enqueue parameters. */
 export const toolRequestsToServices = (
   toolRequests: AgentToolRequest[],
   currentSubject: string,
@@ -120,9 +116,7 @@ export const toolRequestsToServices = (
   }));
 };
 
-/**
- * Creates the output response format.
- */
+/** Creates the output response format. */
 export const createOutput = (response: string | object, messages: AgentMessage[], enableMessageHistory: boolean) => {
   return {
     ...(enableMessageHistory ? { messages } : {}),
@@ -130,9 +124,7 @@ export const createOutput = (response: string | object, messages: AgentMessage[]
   };
 };
 
-/**
- * Extracts tool results from collected event metadata.
- */
+/** Extracts tool results from collected event metadata. */
 export const extractToolResults = (
   eventMap: Record<string, InferArvoEvent<ArvoEvent>[]>,
 ): Array<{ id: string; data: string }> => {
@@ -144,9 +136,7 @@ export const extractToolResults = (
   });
 };
 
-/**
- * Compares expected event counts with actual collected event counts.
- */
+/** Compares expected event counts with actual collected event counts. */
 export const compareCollectedEventCounts = (
   target: Record<string, number>,
   current: Record<string, number>,

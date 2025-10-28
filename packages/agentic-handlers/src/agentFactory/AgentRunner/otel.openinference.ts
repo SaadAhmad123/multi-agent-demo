@@ -81,15 +81,15 @@ export const openInferenceSpanInitAttributesSetter = (param: {
             attrs.push([
               `${OpenInferenceSemanticConventions.LLM_INPUT_MESSAGES}.${index}.${OpenInferenceSemanticConventions.MESSAGE_TOOL_CALLS}.${i}.${OpenInferenceSemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
               JSON.stringify({
-                ...c.input,
-                toolUseId$$: c.id,
+                param: c.input,
+                tool_use_id: c.id,
               }),
             ]);
           }
           if (c.type === 'tool_result') {
             attrs.push([
               `${OpenInferenceSemanticConventions.LLM_INPUT_MESSAGES}.${index}.${OpenInferenceSemanticConventions.MESSAGE_CONTENTS}.${i}.${OpenInferenceSemanticConventions.MESSAGE_CONTENT_TEXT}`,
-              JSON.stringify({ result: c.content, toolUseId$$: c.tool_use_id }),
+              JSON.stringify({ result: c.content, tool_use_id: c.tool_use_id }),
             ]);
           }
         }
@@ -134,7 +134,10 @@ export const openInferenceSpanOutputAttributesSetter = ({
           ],
           [
             `${OpenInferenceSemanticConventions.LLM_OUTPUT_MESSAGES}.0.${OpenInferenceSemanticConventions.MESSAGE_TOOL_CALLS}.${index}.${OpenInferenceSemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}`,
-            JSON.stringify(item.data),
+            JSON.stringify({
+              param: item.data,
+              tool_use_id: item.id,
+            }),
           ],
         ]),
       ),

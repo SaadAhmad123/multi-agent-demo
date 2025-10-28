@@ -1,6 +1,7 @@
 import z from 'zod';
 import { cleanString, createArvoOrchestratorContract } from 'arvo-core';
 import { AgentMessageSchema } from '../AgentRunner/schemas.js';
+import { buildAgentContractDescription } from './prompts.js';
 
 /**
  * Default output format for agents that don't specify a custom output schema.
@@ -8,6 +9,7 @@ import { AgentMessageSchema } from '../AgentRunner/schemas.js';
  */
 export const DEFAULT_AGENT_OUTPUT_FORMAT = z.object({ response: z.string() });
 
+/** Configuration parameters for creating an agent contract. */
 export type CreateAgentContractParams<
   TUri extends string = string,
   TName extends string = string,
@@ -41,28 +43,6 @@ export type CreateAgentContractParams<
     description?: string;
     contractName: string;
   }) => string;
-};
-
-const buildAgentContractDescription: NonNullable<CreateAgentContractParams['descriptionBuilder']> = (param) => {
-  return cleanString(`
-    I am an AI Agent.
-    ${param.description ? `# Capabilities\n${param.description}` : '# Capabilities\nAsk me directly for a summary of what I can do.'}
-    ${
-      param.alias
-        ? `# Direct User Interaction
-          I am a user-facing AI Agent designed for direct human interaction. 
-          Users know me by the name "${param.alias}". They can call me directly by 
-          tagging me as "@${param.alias}" in their messages. This allows them to reach out 
-          to me specifically when they need my assistance.`
-        : ''
-    }
-    # System Identification
-    Within the broader system:
-    - My system identifier: "${param.contractName}"
-    - My AI Agent compliant ID (used by other AI agents to call me): "${param.contractName.replaceAll('.', '_')}"
-    Other AI agents in the system can invoke me using my AI Agent compliant ID when they need to delegate tasks 
-    or collaborate on solving user requests.
-  `);
 };
 
 export const createAgentContract = <

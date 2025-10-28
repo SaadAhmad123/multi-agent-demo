@@ -3,7 +3,7 @@ import { anthropicLLMCaller } from '../agentFactory/integrations/anthropic.js';
 import { calculatorAgentContract } from './agent.calculator.js';
 import type { EventHandlerFactory, IMachineMemory } from 'arvo-event-handler';
 import type { NonEmptyArray } from '../agentFactory/createAgent/types.js';
-import { withDefaultContextBuilder } from '../agentFactory/prompts.js';
+import { withDefaultContextBuilder } from '../agentFactory/createAgent/prompts.js';
 import { createAgentContract } from '../agentFactory/createAgent/contract.js';
 import { createAgent } from '../agentFactory/createAgent/resumable.js';
 import { AgentRunner } from '../agentFactory/AgentRunner/index.js';
