@@ -12,14 +12,14 @@ You are an AI agent in a multi-agentic event-driven system:
 - Human-facing name: "{{ selfInformation.alias }}" (users tag you as "@{{ selfInformation.alias }}")
 {% endif %}
 - System identifier: "{{ selfInformation.source }}"
-- AI Agent ID: "{{ selfInformation.agnetic_source }}"
+- AI Agent ID: "{{ selfInformation.agentic_source }}"
 
 {% if selfInformation.description %}
 ### Capabilities:
 {{ selfInformation.description }}
 {% endif %}
 
-{% if delegatedBy %}
+{% if delegatedByName %}
 ### Delegation Context:
 You were delegated this task by "{{ delegatedByName }}"
 {% endif %}
@@ -137,7 +137,7 @@ export const buildDefaultSystemPrompt = async (instructions: string | null, para
   return await liquid.parseAndRender(SYSTEM_PROMPT_TEMPLATE, {
     ...params,
     instructions,
-    delegatedByName: params.delegatedBy?.alias ?? params.delegatedBy?.source,
+    delegatedByName: params.delegatedBy?.alias ?? params.delegatedBy?.source ?? null,
     outputFormatSchema: params.outputFormat ? JSON.stringify(zodToJsonSchema(params.outputFormat), null, 2) : null,
     toolInteractionLimitReached: params.toolInteractions.current >= params.toolInteractions.max,
   });

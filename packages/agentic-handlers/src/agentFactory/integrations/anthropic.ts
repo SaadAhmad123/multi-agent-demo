@@ -2,28 +2,22 @@ import Anthropic from '@anthropic-ai/sdk';
 import { SemanticConventions as OpenInferenceSemanticConventions } from '@arizeai/openinference-semantic-conventions';
 import type { AgentLLMIntegration, AgentLLMIntegrationOutput } from '../AgentRunner/types.js';
 import { tryParseJson } from './utils.jsonParse.js';
+import { logToSpan } from 'arvo-core';
 
-/**
- * Anthropic Claude integration for agentic LLM calls within Arvo orchestrators.
- *
- * Bridges Arvo's contract-based event system with Anthropic's Claude API, enabling
- * AI agents to make intelligent tool decisions and generate responses within Arvo's
- * event-driven architecture. Handles message formatting, tool name conversion, and
- * response parsing for seamless integration.
- *
- * ## Tool Name Conversion
- * Arvo event types use dot notation (e.g., 'user.lookup') but Anthropic requires
- * underscore format (e.g., 'user_lookup'). This function handles the conversion
- * automatically while preserving the original semantics.
- *
- * @returns Promise resolving to structured LLM response with either text response or tool requests
- *
- * @throws {Error} When Claude provides neither a response nor tool requests
- */
+/** Anthropic Claude integration for agentic LLM calls within Arvo orchestrators. */
 export const anthropicLLMCaller: AgentLLMIntegration = async (
-  { messages, outputFormat, tools, systemPrompt },
+  {
+    messages,
+    outputFormat,
+    tools,
+    systemPrompt,
+    stream: eventStreamer,
+    selfInformation: _selfInformation,
+    delegatedBy,
+  },
   { span },
 ) => {
+  const { description, ...selfInformation } = _selfInformation;
   const llmModel: Anthropic.Messages.Model = 'claude-sonnet-4-0';
   const llmInvocationParams = {
     temperature: 0.5,
@@ -73,7 +67,8 @@ export const anthropicLLMCaller: AgentLLMIntegration = async (
     dangerouslyAllowBrowser: true,
   });
 
-  const message = await anthropic.messages.create({
+  // Use streaming API
+  const stream = await anthropic.messages.create({
     model: llmModel,
     max_tokens: llmInvocationParams.maxTokens,
     temperature: llmInvocationParams.temperature,
@@ -82,52 +77,100 @@ export const anthropicLLMCaller: AgentLLMIntegration = async (
     tools: toolDef as any,
     // biome-ignore lint/suspicious/noExplicitAny: Any is fine here for now
     messages: formattedMessages as any,
+    stream: true,
   });
 
   /**
-   * Extracts and processes tool requests from Claude's response.
-   * Converts tool names back to Arvo format and tracks usage counts.
+   * Process the stream and accumulate response data.
+   * Extracts tool requests and text responses as they arrive.
    */
   const toolRequests: NonNullable<AgentLLMIntegrationOutput['toolRequests']> = [];
-  const toolTypeCount: Record<string, number> = {};
+  let finalResponse = '';
+  let stopReason: string | null = null;
+  let inputTokens = 0;
+  let outputTokens = 0;
 
-  if (message.stop_reason === 'tool_use') {
-    for (const item of message.content) {
-      if (item.type === 'tool_use') {
-        const actualType = item.name;
-        toolRequests.push({
-          type: actualType,
-          id: item.id,
-          data: item.input as unknown as object,
+  // Track tool use blocks being built
+  const toolUseBlocks: Map<number, { id: string; name: string; input: string }> = new Map();
+
+  for await (const event of stream) {
+    if (event.type === 'message_start') {
+      inputTokens = event.message.usage.input_tokens;
+      outputTokens = event.message.usage.output_tokens;
+    } else if (event.type === 'content_block_start') {
+      if (event.content_block.type === 'tool_use') {
+        toolUseBlocks.set(event.index, {
+          id: event.content_block.id,
+          name: event.content_block.name,
+          input: '',
         });
-        // Track tool usage for workflow management
-        if (!toolTypeCount[actualType]) {
-          toolTypeCount[actualType] = 0;
-        }
-        toolTypeCount[actualType] = toolTypeCount[actualType] + 1;
       }
+    } else if (event.type === 'content_block_delta') {
+      if (event.delta.type === 'text_delta') {
+        finalResponse += event.delta.text;
+        eventStreamer?.({
+          type: 'llm.stream',
+          data: {
+            response: finalResponse,
+            delta: event.delta.text,
+            delegatedBy,
+            selfInformation,
+          },
+        }).catch(() => {});
+      } else if (event.delta.type === 'input_json_delta') {
+        const block = toolUseBlocks.get(event.index);
+        if (block) {
+          block.input += event.delta.partial_json;
+          eventStreamer?.({
+            type: 'llm.stream',
+            data: {
+              response: `Preparing tool call ${block.name}`,
+              delta: null,
+              delegatedBy,
+              selfInformation,
+            },
+          }).catch(() => {});
+        }
+      }
+    } else if (event.type === 'content_block_stop') {
+      const block = toolUseBlocks.get(event.index);
+      if (block) {
+        try {
+          toolRequests.push({
+            type: block.name,
+            id: block.id,
+            data: JSON.parse(block.input) as object,
+          });
+        } catch (e) {
+          eventStreamer?.({
+            type: 'llm.stream',
+            data: {
+              response: `Skipping tool call ${block.name} due to technical issues`,
+              delta: null,
+              delegatedBy,
+              selfInformation,
+            },
+          }).catch(() => {});
+          logToSpan(
+            {
+              level: 'WARNING',
+              message: `Failed to parse tool call input for tool '${block.name}' (id: ${block.id}). Tool call will be dropped.`,
+            },
+            span,
+          );
+        }
+        toolUseBlocks.delete(event.index);
+      }
+    } else if (event.type === 'message_delta') {
+      stopReason = event.delta.stop_reason ?? stopReason;
+      outputTokens += event.usage.output_tokens;
     }
-  }
-
-  /**
-   * Extracts direct text response when Claude doesn't request tools.
-   * Handles structured output parsing if an output format is specified.
-   */
-  let finalResponse: string | null = null;
-  if (message.stop_reason === 'end_turn') {
-    finalResponse = message.content[0]?.type === 'text' ? message.content[0].text : 'No final response';
-  }
-  if (message.stop_reason === 'max_tokens') {
-    finalResponse =
-      message.content[0]?.type === 'text'
-        ? `${message.content[0].text}\n\n[Response truncated: Maximum token limit reached]`
-        : '[Response truncated: Maximum token limit reached]';
   }
 
   const llmUsage: NonNullable<AgentLLMIntegrationOutput['usage']> = {
     tokens: {
-      prompt: message.usage.input_tokens,
-      completion: message.usage.output_tokens,
+      prompt: inputTokens,
+      completion: outputTokens,
     },
   };
 
@@ -139,12 +182,20 @@ export const anthropicLLMCaller: AgentLLMIntegration = async (
     };
   }
 
+  // Handle response based on stop reason
+  let processedResponse = finalResponse;
+  if (stopReason === 'max_tokens' && finalResponse) {
+    processedResponse = `${finalResponse}\n\n[Response truncated: Maximum token limit reached]`;
+  } else if (!finalResponse && stopReason === 'max_tokens') {
+    processedResponse = '[Response truncated: Maximum token limit reached]';
+  }
+
   return {
     toolRequests: null,
-    response: finalResponse
-      ? outputFormat && tryParseJson(finalResponse)
-        ? outputFormat.parse(JSON.parse(finalResponse))
-        : finalResponse
+    response: processedResponse
+      ? outputFormat && tryParseJson(processedResponse)
+        ? outputFormat.parse(JSON.parse(processedResponse))
+        : processedResponse
       : '',
     usage: llmUsage,
   };

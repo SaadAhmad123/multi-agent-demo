@@ -13,6 +13,7 @@ import type {
 import type { Span } from '@opentelemetry/api';
 import type { OpenTelemetryHeaders } from 'arvo-core';
 import type { IMCPConnection, IToolApprovalCache } from './interfaces.js';
+import type { AgentRunnerEvent } from './stream.js';
 
 export type AgenticToolResultMessageContent = z.infer<typeof AgentToolResultMessageContentSchema>;
 export type AgenticToolCallMessageContent = z.infer<typeof AgentToolCallMessageContentSchema>;
@@ -29,6 +30,8 @@ export type OtelInfoType = {
   headers: OpenTelemetryHeaders;
 };
 
+export type AgentStreamFunction = (param: AgentRunnerEvent) => Promise<void>;
+
 export type AgentRunnerExecuteParam = {
   lifecycle: AgentRunnerLifecycleType;
   messages: AgentMessage[];
@@ -40,7 +43,7 @@ export type AgentRunnerExecuteParam = {
     alias: string | null;
     source: string;
     description: string;
-    agnetic_source: string;
+    agentic_source: string;
   };
   delegatedBy: {
     alias: string | null;
@@ -49,6 +52,7 @@ export type AgentRunnerExecuteParam = {
   outputFormat: z.AnyZodObject | null;
   toolApproval: AgentToolDefinition | null;
   humanReview: AgentToolDefinition | null;
+  stream: AgentStreamFunction | null;
 };
 
 export type AgentRunnerExecuteOutput = {
@@ -79,7 +83,7 @@ export type AgentConfiguredToolDefinition = AgentToolDefinition & {
 
 export type AgentContextBuilderParam = Omit<
   AgentRunnerExecuteParam,
-  'tools' | 'toolInteractions' | 'toolApproval' | 'humanReview' | 'selfInformation'
+  'tools' | 'toolInteractions' | 'toolApproval' | 'humanReview'
 > & {
   tools: Array<AgentConfiguredToolDefinition>;
   toolInteractions: {
@@ -101,6 +105,9 @@ export type AgentLLMIntegrationParam = {
   messages: AgentRunnerExecuteParam['messages'];
   tools: Omit<AgentToolDefinition, 'requires_approval'>[];
   outputFormat: NonNullable<AgentRunnerExecuteParam['outputFormat']> | null;
+  stream: AgentRunnerExecuteParam['stream'];
+  selfInformation: AgentRunnerExecuteParam['selfInformation'];
+  delegatedBy: AgentRunnerExecuteParam['delegatedBy'];
 };
 
 export type AgentLLMIntegrationOutput = {

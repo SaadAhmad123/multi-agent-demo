@@ -21,6 +21,7 @@ import {
   SemanticConventions as OpenInferenceSemanticConventions,
   OpenInferenceSpanKind,
 } from '@arizeai/openinference-semantic-conventions';
+import { streamEmitter } from './stream.js';
 
 const TOOL_SERVER_PREFIXES = {
   external: 'ext_',
@@ -126,9 +127,55 @@ export class AgentRunner {
       fn: async (span) => {
         span.setAttribute(OpenInferenceSemanticConventions.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.AGENT);
         const otelInfo = this.createOtelInfo(span);
+
+        streamEmitter(
+          {
+            type: 'execution.started',
+            data: {
+              lifecycle: param.lifecycle,
+              messageCount: param.messages.length,
+              toolCount: param.tools.length,
+              selfInformation: param.selfInformation,
+              delegatedBy: param.delegatedBy,
+            },
+          },
+          param.stream,
+        );
+
         try {
           await this.initializeExecution(param, otelInfo);
-          return await this.runExecutionLoop(param, otelInfo);
+          const result = await this.runExecutionLoop(param, otelInfo);
+
+          streamEmitter(
+            {
+              type: 'execution.completed',
+              data: {
+                response: result.response?.toString() || null,
+                hasPendingTools: result.toolRequests !== null,
+                toolInteractionCount: result.toolInteractions.current,
+                selfInformation: param.selfInformation,
+                delegatedBy: param.delegatedBy,
+              },
+            },
+            param.stream,
+          );
+
+          return result;
+        } catch (error) {
+          streamEmitter(
+            {
+              type: 'execution.failed',
+              data: {
+                error: (error as Error).message,
+                iteration: param.toolInteractions.current,
+                toolInteractionCount: param.toolInteractions.current,
+                selfInformation: param.selfInformation,
+                delegatedBy: param.delegatedBy,
+              },
+            },
+            param.stream,
+          );
+          throw error;
         } finally {
           await this.cleanup(otelInfo, span);
         }
@@ -162,6 +209,21 @@ export class AgentRunner {
     const maxIterations = this.maxToolInteractions + 2;
 
     for (let iteration = 0; iteration < maxIterations; iteration++) {
+      if (toolInteractionCount >= this.maxToolInteractions) {
+        streamEmitter(
+          {
+            type: 'tool.budget.exhausted',
+            data: {
+              toolInteractionCount,
+              maxToolInteractions: this.maxToolInteractions,
+              selfInformation: param.selfInformation,
+              delegatedBy: param.delegatedBy,
+            },
+          },
+          param.stream,
+        );
+      }
+
       const context = await this.buildContext(param, messages, agentTools, toolInteractionCount, otelInfo);
       const llmResponse = await this.callLLM(context, param, agentTools, otelInfo);
 
@@ -178,6 +240,7 @@ export class AgentRunner {
         // tool calls which need to be addressed before making any
         // other tool call
         this.prioritizeToolRequests(llmResponse.toolRequests),
+        param,
         otelInfo,
       );
       messages = processedResponse.messages;
@@ -220,7 +283,17 @@ export class AgentRunner {
     toolInteractionCount: number,
     otelInfo: OtelInfoType,
   ) {
-    return await this.contextBuilder(
+    streamEmitter(
+      {
+        type: 'context.build.started',
+        data: {
+          selfInformation: param.selfInformation,
+          delegatedBy: param.delegatedBy,
+        },
+      },
+      param.stream,
+    );
+    const result = await this.contextBuilder(
       {
         ...param,
         messages,
@@ -241,6 +314,17 @@ export class AgentRunner {
       },
       otelInfo,
     );
+    streamEmitter(
+      {
+        type: 'context.build.success',
+        data: {
+          selfInformation: param.selfInformation,
+          delegatedBy: param.delegatedBy,
+        },
+      },
+      param.stream,
+    );
+    return result;
   }
 
   private async callLLM(
@@ -258,12 +342,29 @@ export class AgentRunner {
       },
       fn: async (span) => {
         try {
+          streamEmitter(
+            {
+              type: 'llm.call.started',
+              data: {
+                messageCount: context.messages.length,
+                toolCount: agentTools.length,
+                systemPromptLength: context.systemPrompt?.length ?? 0,
+                selfInformation: param.selfInformation,
+                delegatedBy: param.delegatedBy,
+              },
+            },
+            param.stream,
+          );
+
           const llmParam: AgentLLMIntegrationParam = {
             messages: context.messages,
             systemPrompt: context.systemPrompt,
             tools: agentTools,
             lifecycle: param.lifecycle,
             outputFormat: param.outputFormat,
+            stream: param.stream,
+            selfInformation: param.selfInformation,
+            delegatedBy: param.delegatedBy,
           };
 
           openInferenceSpanInitAttributesSetter({ ...llmParam, span });
@@ -272,6 +373,25 @@ export class AgentRunner {
             headers: getOtelHeaderFromSpan(span),
           });
           openInferenceSpanOutputAttributesSetter({ ...result, span });
+
+          streamEmitter(
+            {
+              type: 'llm.call.completed',
+              data: {
+                response: result.response?.toString() ?? null,
+                toolRequestCount: result.toolRequests?.length ?? 0,
+                selfInformation: param.selfInformation,
+                delegatedBy: param.delegatedBy,
+                usage: result.usage
+                  ? {
+                      promptTokens: result.usage.tokens.prompt,
+                      completionTokens: result.usage.tokens.completion,
+                    }
+                  : null,
+              },
+            },
+            param.stream,
+          );
 
           return result;
         } finally {
@@ -361,6 +481,7 @@ export class AgentRunner {
   private async processToolRequests(
     messages: AgentMessage[],
     toolRequests: AgentToolRequest[],
+    param: AgentRunnerExecuteParam,
     parentSpan: OtelInfoType,
   ) {
     let updatedMessages = [...messages];
@@ -375,6 +496,17 @@ export class AgentRunner {
         continue;
       }
       if (tool.tool_server === 'mcp') {
+        streamEmitter(
+          {
+            type: 'tool.mcp.executing',
+            data: {
+              type: tool.name,
+              selfInformation: param.selfInformation,
+              delegatedBy: param.delegatedBy,
+            },
+          },
+          param.stream,
+        );
         mcpInvocations.push(this.invokeMCPTool(request, tool.name, parentSpan));
       } else if (tool.tool_server === 'external') {
         externalToolRequests.push({

@@ -2,6 +2,7 @@ import type { IMachineMemory } from 'arvo-event-handler';
 import type { AgentRunner } from '../AgentRunner/index.js';
 import type { AgentContract } from './contract.js';
 import type { VersionedArvoContract } from 'arvo-core';
+import type { AgentRunnerEvent } from '../AgentRunner/stream.js';
 
 export type NonEmptyArray<T> = [T, ...T[]];
 
@@ -16,6 +17,7 @@ export type CreateAgentParam<TContract extends AgentContract> = {
   contract: TContract;
   engine: AgentRunner;
   memory: IMachineMemory<Record<string, unknown>>;
+  streamListener?: (param: AgentRunnerEvent & { subject: string }) => Promise<void>;
   services?: Record<
     string,
     | AnyVersionedContract

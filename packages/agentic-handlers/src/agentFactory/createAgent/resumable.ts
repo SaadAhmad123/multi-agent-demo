@@ -47,6 +47,7 @@ export const createAgent = <TContract extends AgentContract>({
   humanReview,
   engine,
   memory,
+  streamListener,
 }: CreateAgentParam<TContract>) => {
   const toolApprovalVersionedContract = toolApprovalContract.version('1.0.0');
   const humanReviewVersionedContract = humanReviewContract.version('1.0.0');
@@ -101,6 +102,15 @@ export const createAgent = <TContract extends AgentContract>({
           const result = await engine
             .init(
               {
+                stream: streamListener
+                  ? async (event) => {
+                      // biome-ignore lint/style/noNonNullAssertion: Pretty sure that this will not be null
+                      await streamListener!({
+                        ...event,
+                        subject: input.subject,
+                      });
+                    }
+                  : null,
                 message: input.data.message,
                 outputFormat: contract.metadata.config.outputFormat ?? null,
                 tools: toolDefinitions.services,
@@ -108,7 +118,7 @@ export const createAgent = <TContract extends AgentContract>({
                   alias: contract.metadata.config.alias ?? null,
                   source: contracts.self.accepts.type,
                   description: contract.description ?? '',
-                  agnetic_source: toolFormatter.format(contracts.self.accepts.type),
+                  agentic_source: toolFormatter.format(contracts.self.accepts.type),
                 },
                 delegatedBy: input.data.delagationSource
                   ? {
@@ -189,6 +199,15 @@ export const createAgent = <TContract extends AgentContract>({
         const result = await engine
           .resume(
             {
+              stream: streamListener
+                ? async (event) => {
+                    // biome-ignore lint/style/noNonNullAssertion: Pretty sure that this will not be null
+                    await streamListener!({
+                      ...event,
+                      subject: context.currentSubject,
+                    });
+                  }
+                : null,
               messages: context.messages,
               toolResults,
               tools: toolDefinitions.services,
@@ -199,7 +218,7 @@ export const createAgent = <TContract extends AgentContract>({
                 alias: contract.metadata.config.alias ?? null,
                 source: contracts.self.accepts.type,
                 description: contract.description ?? '',
-                agnetic_source: toolFormatter.format(contracts.self.accepts.type),
+                agentic_source: toolFormatter.format(contracts.self.accepts.type),
               },
               delegatedBy: context.delegatedBy,
               outputFormat: contract.metadata.config.outputFormat ?? null,
