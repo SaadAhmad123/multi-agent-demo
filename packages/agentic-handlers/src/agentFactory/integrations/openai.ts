@@ -9,6 +9,7 @@ import { SemanticConventions as OpenInferenceSemanticConventions } from '@arizea
 import type { ChatModel } from 'openai/resources/shared.mjs';
 import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/index.mjs';
 import { tryParseJson } from './utils.jsonParse.js';
+import { logToSpan } from 'arvo-core';
 
 /**
  * Converts Arvo agentic messages to OpenAI-compatible chat completion format.
@@ -124,9 +125,18 @@ const formatMessagesForOpenAI = (
  * @throws {Error} If OpenAI provides neither a response nor tool requests
  */
 export const openaiLLMCaller: AgentLLMIntegration = async (
-  { messages, tools, systemPrompt, outputFormat },
+  {
+    messages,
+    tools,
+    systemPrompt,
+    outputFormat,
+    stream: eventStreamer,
+    selfInformation: _selfInformation,
+    delegatedBy,
+  },
   { span },
 ) => {
+  const { description, ...selfInformation } = _selfInformation;
   /**
    * Configure model and invocation parameters.
    */
@@ -168,55 +178,136 @@ export const openaiLLMCaller: AgentLLMIntegration = async (
     dangerouslyAllowBrowser: true,
   });
 
-  const message = await openai.chat.completions.create({
+  // Use streaming API
+  const stream = await openai.chat.completions.create({
     model: llmModel,
     max_tokens: llmInvocationParams.maxTokens,
     temperature: llmInvocationParams.temperature,
     tools: toolDef,
     messages: formattedMessages,
+    stream: true,
   });
 
   /**
-   * Extracts and processes tool requests from OpenAI's response.
-   * Converts function calls back to Arvo event format and tracks usage.
+   * Process the stream and accumulate response data.
+   * Extracts tool requests and text responses as they arrive.
    */
   const toolRequests: NonNullable<AgentLLMIntegrationOutput['toolRequests']> = [];
-  const toolTypeCount: Record<string, number> = {};
+  let finalResponse = '';
+  let finishReason: string | null = null;
+  let inputTokens = 0;
+  let outputTokens = 0;
 
-  if (
-    message?.choices?.[0]?.finish_reason === 'function_call' ||
-    message?.choices?.[0]?.finish_reason === 'tool_calls'
-  ) {
-    for (const item of message.choices[0]?.message.tool_calls ?? []) {
-      if (item.type === 'function') {
-        const actualType = item.function.name;
-        toolRequests.push({
-          type: actualType,
-          id: item.id,
-          data: JSON.parse(item.function.arguments),
-        });
-        // Track tool usage
-        toolTypeCount[actualType] = (toolTypeCount[actualType] ?? 0) + 1;
+  // Track tool calls being built incrementally
+  const toolCallsMap: Map<
+    number,
+    {
+      id: string;
+      name: string;
+      arguments: string;
+    }
+  > = new Map();
+
+  for await (const chunk of stream) {
+    const choice = chunk.choices[0];
+
+    if (!choice) continue;
+
+    // Accumulate text deltas
+    if (choice.delta?.content) {
+      finalResponse += choice.delta.content;
+      eventStreamer?.({
+        type: 'llm.stream',
+        data: {
+          response: finalResponse,
+          delta: choice.delta.content,
+          delegatedBy,
+          selfInformation,
+        },
+      }).catch(() => {});
+    }
+
+    // Handle tool call deltas
+    if (choice.delta?.tool_calls) {
+      for (const toolCall of choice.delta.tool_calls) {
+        const index = toolCall.index;
+
+        if (!toolCallsMap.has(index)) {
+          toolCallsMap.set(index, {
+            id: toolCall.id || '',
+            name: toolCall.function?.name || '',
+            arguments: '',
+          });
+        }
+
+        // biome-ignore lint/style/noNonNullAssertion: This cannot be null as if it does not exist it is filled by above statement
+        const existingCall = toolCallsMap.get(index)!;
+
+        if (toolCall.id) {
+          existingCall.id = toolCall.id;
+        }
+        if (toolCall.function?.name) {
+          existingCall.name = toolCall.function.name;
+          eventStreamer?.({
+            type: 'llm.stream',
+            data: {
+              response: `Preparing tool call ${existingCall.name}`,
+              delta: null,
+              delegatedBy,
+              selfInformation,
+            },
+          }).catch(() => {});
+        }
+        if (toolCall.function?.arguments) {
+          existingCall.arguments += toolCall.function.arguments;
+        }
       }
+    }
+
+    // Capture finish reason and usage data
+    if (choice.finish_reason) {
+      finishReason = choice.finish_reason;
+    }
+
+    // OpenAI provides usage in the final chunk
+    if (chunk.usage) {
+      inputTokens = chunk.usage.prompt_tokens;
+      outputTokens = chunk.usage.completion_tokens;
     }
   }
 
-  /**
-   * Extracts direct text response when OpenAI doesn't request tools.
-   * Handles structured output parsing if an output format is specified.
-   */
-  let finalResponse: string | null = null;
-  if (message?.choices?.[0]?.finish_reason === 'stop') {
-    finalResponse = message.choices[0].message.content;
-  }
-  if (message?.choices?.[0]?.finish_reason === 'length') {
-    finalResponse = `${message.choices[0].message.content}\n\n[Response truncated: Maximum token limit reached]`;
+  // Process completed tool calls
+  for (const [_, toolCall] of toolCallsMap) {
+    try {
+      toolRequests.push({
+        type: toolCall.name,
+        id: toolCall.id,
+        data: JSON.parse(toolCall.arguments) as object,
+      });
+    } catch (e) {
+      eventStreamer?.({
+        type: 'llm.stream',
+        data: {
+          response: `Skipping tool call ${toolCall.name} due to technical issues`,
+          delta: null,
+          delegatedBy,
+          selfInformation,
+        },
+      }).catch(() => {});
+      logToSpan(
+        {
+          level: 'WARNING',
+          message: `Failed to parse tool call arguments for tool '${toolCall.name}' (id: ${toolCall.id}). Tool call will be dropped.`,
+        },
+        span,
+      );
+    }
   }
 
   const llmUsage: NonNullable<AgentLLMIntegrationOutput['usage']> = {
     tokens: {
-      prompt: message.usage?.prompt_tokens ?? 0,
-      completion: message.usage?.completion_tokens ?? 0,
+      prompt: inputTokens,
+      completion: outputTokens,
     },
   };
 
@@ -228,12 +319,20 @@ export const openaiLLMCaller: AgentLLMIntegration = async (
     };
   }
 
+  // Handle response based on finish reason
+  let processedResponse = finalResponse;
+  if (finishReason === 'length' && finalResponse) {
+    processedResponse = `${finalResponse}\n\n[Response truncated: Maximum token limit reached]`;
+  } else if (!finalResponse && finishReason === 'length') {
+    processedResponse = '[Response truncated: Maximum token limit reached]';
+  }
+
   return {
     toolRequests: null,
-    response: finalResponse
-      ? outputFormat && tryParseJson(finalResponse)
-        ? outputFormat.parse(JSON.parse(finalResponse))
-        : finalResponse
+    response: processedResponse
+      ? outputFormat && tryParseJson(processedResponse)
+        ? outputFormat.parse(JSON.parse(processedResponse))
+        : processedResponse
       : '',
     usage: llmUsage,
   };

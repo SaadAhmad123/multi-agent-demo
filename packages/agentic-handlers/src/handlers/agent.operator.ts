@@ -1,5 +1,4 @@
 import { cleanString } from 'arvo-core';
-import { anthropicLLMCaller } from '../agentFactory/integrations/anthropic.js';
 import { calculatorAgentContract } from './agent.calculator.js';
 import type { EventHandlerFactory, IMachineMemory } from 'arvo-event-handler';
 import type { NonEmptyArray } from '../agentFactory/createAgent/types.js';
@@ -13,6 +12,7 @@ import { findDomainMcpAgentContract } from './agent.mcp.findadomain.js';
 import { githubMcpAgentContract } from './agent.mcp.github.js';
 import { zapierGmailAndWeatherMcpAgentContract } from './agent.mcp.zapier.gmailandweather.js';
 import { zapierGoogleDocsMcpAgentContract } from './agent.mcp.zapier.googledocs.js';
+import { openaiLLMCaller } from '../agentFactory/integrations/openai.js';
 
 export const operatorAgentContract = createAgentContract({
   alias: 'operator',
@@ -38,7 +38,7 @@ export const operatorAgent: EventHandlerFactory<{
 }> = ({ memory, humanInteractionDomain }) => {
   const engine = new AgentRunner({
     name: operatorAgentContract.type,
-    llm: anthropicLLMCaller,
+    llm: openaiLLMCaller,
     maxToolInteractions: 100,
     contextBuilder: withDefaultContextBuilder(
       cleanString(`
@@ -80,6 +80,9 @@ export const operatorAgent: EventHandlerFactory<{
     contract: operatorAgentContract,
     engine,
     memory,
+    streamListener: async ({ type, data }) => {
+      console.log(JSON.stringify({ type, data }, null, 2));
+    },
     services: {
       calculatorAgent: {
         contract: calculatorAgentContract.version('1.0.0'),
