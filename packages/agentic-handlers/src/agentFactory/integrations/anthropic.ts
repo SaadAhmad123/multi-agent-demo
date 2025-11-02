@@ -1,8 +1,10 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { SemanticConventions as OpenInferenceSemanticConventions } from '@arizeai/openinference-semantic-conventions';
+import { logToSpan } from 'arvo-core';
+import * as dotenv from 'dotenv';
 import type { AgentLLMIntegration, AgentLLMIntegrationOutput } from '../AgentRunner/types.js';
 import { tryParseJson } from './utils.jsonParse.js';
-import { logToSpan } from 'arvo-core';
+dotenv.config();
 
 /** Anthropic Claude integration for agentic LLM calls within Arvo orchestrators. */
 export const anthropicLLMCaller: AgentLLMIntegration = async (
@@ -20,7 +22,7 @@ export const anthropicLLMCaller: AgentLLMIntegration = async (
   const { description, ...selfInformation } = _selfInformation;
   const llmModel: Anthropic.Messages.Model = 'claude-sonnet-4-0';
   const llmInvocationParams = {
-    temperature: 0.5,
+    temperature: 0,
     maxTokens: 4096,
   };
 
@@ -64,7 +66,6 @@ export const anthropicLLMCaller: AgentLLMIntegration = async (
 
   const anthropic = new Anthropic({
     apiKey: process.env.ANTHROPIC_API_KEY,
-    dangerouslyAllowBrowser: true,
   });
 
   // Use streaming API

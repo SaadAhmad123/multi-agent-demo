@@ -1,11 +1,11 @@
 import { Client } from '@modelcontextprotocol/sdk/client';
-import type { Tool, ListToolsResult } from '@modelcontextprotocol/sdk/types.js';
-import { SpanStatusCode } from '@opentelemetry/api';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { ArvoOpenTelemetry, exceptionToSpan, logToSpan, OpenInference, OpenInferenceSpanKind } from 'arvo-core';
-import type { AgentToolDefinition, OtelInfoType } from '../AgentRunner/types.js';
+import type { ListToolsResult, Tool } from '@modelcontextprotocol/sdk/types.js';
+import { SpanStatusCode } from '@opentelemetry/api';
+import { ArvoOpenTelemetry, OpenInference, OpenInferenceSpanKind, exceptionToSpan, logToSpan } from 'arvo-core';
 import type { IMCPConnection } from '../AgentRunner/interfaces.js';
+import type { AgentToolDefinition, OtelInfoType } from '../AgentRunner/types.js';
 
 /**
  * Model Context Protocol (MCP) client implementation for connecting to and interacting with MCP servers.

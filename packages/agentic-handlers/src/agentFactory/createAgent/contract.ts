@@ -1,5 +1,5 @@
-import z from 'zod';
 import { cleanString, createArvoOrchestratorContract } from 'arvo-core';
+import z from 'zod';
 import { AgentMessageSchema } from '../AgentRunner/schemas.js';
 import { buildAgentContractDescription } from './prompts.js';
 
@@ -97,8 +97,18 @@ export const createAgentContract = <
     },
   });
 
-export type AgentContract<
+export type AgentContract<TUri extends string, TName extends string, TOutput extends z.AnyZodObject> = ReturnType<
+  typeof createAgentContract<TUri, TName, TOutput>
+>;
+
+export type DefaultAgentContract<
   TUri extends string = string,
   TName extends string = string,
   TOutput extends z.AnyZodObject = typeof DEFAULT_AGENT_OUTPUT_FORMAT,
-> = ReturnType<typeof createAgentContract<TUri, TName, TOutput>>;
+> = AgentContract<TUri, TName, TOutput>;
+
+export type AnyAgentContract<
+  TUri extends string = string,
+  TName extends string = string,
+  TOutput extends z.AnyZodObject = z.AnyZodObject,
+> = AgentContract<TUri, TName, TOutput>;

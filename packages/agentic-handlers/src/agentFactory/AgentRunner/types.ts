@@ -1,18 +1,18 @@
+import type { Span } from '@opentelemetry/api';
+import type { OpenTelemetryHeaders } from 'arvo-core';
 import type { z } from 'zod';
+import type { IMCPConnection, IToolApprovalCache } from './interfaces.js';
 import type {
-  AgentToolResultMessageContentSchema,
-  AgentToolCallMessageContentSchema,
-  AgentTextMessageContentSchema,
   AgentMessageContentSchema,
   AgentMessageRole,
   AgentMessageSchema,
-  AgentToolDefinitionSchema,
   AgentRunnerLifecycle,
+  AgentTextMessageContentSchema,
+  AgentToolCallMessageContentSchema,
+  AgentToolDefinitionSchema,
   AgentToolRequestSchema,
+  AgentToolResultMessageContentSchema,
 } from './schemas.js';
-import type { Span } from '@opentelemetry/api';
-import type { OpenTelemetryHeaders } from 'arvo-core';
-import type { IMCPConnection, IToolApprovalCache } from './interfaces.js';
 import type { AgentRunnerEvent } from './stream.js';
 
 export type AgenticToolResultMessageContent = z.infer<typeof AgentToolResultMessageContentSchema>;

@@ -1,11 +1,15 @@
-import { createArvoResumable } from 'arvo-event-handler';
-import type { AgentContract, createAgentContract } from './contract.js';
-import type { CreateAgentParam } from './types.js';
 import {
-  OpenInferenceSpanKind,
   SemanticConventions as OpenInferenceSemanticConventions,
+  OpenInferenceSpanKind,
 } from '@arizeai/openinference-semantic-conventions';
-import { exceptionToSpan, getOtelHeaderFromSpan, type InferVersionedArvoContract } from 'arvo-core';
+import { type InferVersionedArvoContract, exceptionToSpan, getOtelHeaderFromSpan } from 'arvo-core';
+import { createArvoResumable } from 'arvo-event-handler';
+import type { AgentMessage, AgentToolDefinition, AgentToolRequest } from '../AgentRunner/types.js';
+import type { AgentContract, createAgentContract } from './contract.js';
+import { humanReviewContract } from './contracts/humanReview.js';
+import { toolApprovalContract } from './contracts/toolApproval.js';
+import { createAgentToolNameStringFormatter } from './formatter.js';
+import type { CreateAgentParam } from './types.js';
 import {
   calculateToolTypeCounts,
   compareCollectedEventCounts,
@@ -14,10 +18,6 @@ import {
   resolveServiceToolDefinition,
   toolRequestsToServices,
 } from './utils.js';
-import type { AgentMessage, AgentToolDefinition, AgentToolRequest } from '../AgentRunner/types.js';
-import { toolApprovalContract } from './contracts/toolApproval.js';
-import { humanReviewContract } from './contracts/humanReview.js';
-import { createAgentToolNameStringFormatter } from './formatter.js';
 
 // a ArvoOrchestratorContract under the hood.
 type ResolveSelfContractType<TContract extends AgentContract> = ReturnType<

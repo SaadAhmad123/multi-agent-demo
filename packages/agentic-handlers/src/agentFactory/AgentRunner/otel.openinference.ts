@@ -1,13 +1,13 @@
-import type { Span } from '@opentelemetry/api';
 import {
   SemanticConventions as OpenInferenceSemanticConventions,
   OpenInferenceSpanKind,
 } from '@arizeai/openinference-semantic-conventions';
+import type { Span } from '@opentelemetry/api';
 import type {
-  AgenticMessageContent,
   AgentLLMIntegrationOutput,
   AgentLLMIntegrationParam,
   AgentToolDefinition,
+  AgenticMessageContent,
 } from './types.js';
 
 /**

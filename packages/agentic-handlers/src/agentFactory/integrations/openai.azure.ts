@@ -1,7 +1,7 @@
 import { SemanticConventions as OpenInferenceSemanticConventions } from '@arizeai/openinference-semantic-conventions';
 import { logToSpan } from 'arvo-core';
 import * as dotenv from 'dotenv';
-import OpenAI from 'openai';
+import { AzureOpenAI } from 'openai';
 import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/index.mjs';
 import type { ChatModel } from 'openai/resources/shared.mjs';
 import type {
@@ -65,44 +65,40 @@ const formatMessagesForOpenAI = (
 
   // Convert to OpenAI format while maintaining proper message sequencing
   for (const item of flattendMessages) {
-    // A user can only have text content or tool results
-    if (item.role === 'user') {
-      if (item.content.type === 'text') {
-        formatedMessages.push({
-          role: 'user',
-          content: item.content.content,
-        });
-      }
+    if (item.content.type === 'text' && item.role === 'user') {
+      formatedMessages.push({
+        role: 'user',
+        content: item.content.content,
+      });
     }
-    // Handle assistant messages (text responses and tool calls)
-    if (item.role === 'assistant') {
-      if (item.content.type === 'text') {
-        formatedMessages.push({
-          role: 'assistant',
-          content: item.content.content,
-        });
-      }
-      if (item.content.type === 'tool_use') {
-        formatedMessages.push({
-          role: 'assistant',
-          tool_calls: [
-            {
-              type: 'function',
-              id: item.content.id,
-              function: {
-                name: item.content.name,
-                arguments: JSON.stringify(item.content.input),
-              },
+
+    if (item.content.type === 'text' && item.role === 'assistant') {
+      formatedMessages.push({
+        role: 'assistant',
+        content: item.content.content,
+      });
+    }
+
+    if (item.content.type === 'tool_use') {
+      formatedMessages.push({
+        role: 'assistant',
+        tool_calls: [
+          {
+            type: 'function',
+            id: item.content.id,
+            function: {
+              name: item.content.name,
+              arguments: JSON.stringify(item.content.input),
             },
-          ],
-        });
-        // Immediately add the corresponding tool result (OpenAI requirement)
-        formatedMessages.push({
-          role: 'tool',
-          tool_call_id: item.content.id,
-          content: JSON.stringify(toolResponseMap[item.content.id] ?? { error: 'No tool response' }),
-        });
-      }
+          },
+        ],
+      });
+
+      formatedMessages.push({
+        role: 'tool',
+        tool_call_id: item.content.id,
+        content: JSON.stringify(toolResponseMap[item.content.id] ?? { error: 'No tool response' }),
+      });
     }
   }
 
@@ -127,7 +123,7 @@ const formatMessagesForOpenAI = (
  *
  * @throws {Error} If OpenAI provides neither a response nor tool requests
  */
-export const openaiLLMCaller: AgentLLMIntegration = async (
+export const azureOpenaiLLMCaller: AgentLLMIntegration = async (
   {
     messages,
     tools,
@@ -143,17 +139,16 @@ export const openaiLLMCaller: AgentLLMIntegration = async (
   /**
    * Configure model and invocation parameters.
    */
-  const llmModel: ChatModel = 'gpt-4.1';
+  const azureDeploymentName = process.env.AZURE_OPENAI_DEPLOYMENT_NAME;
   const llmInvocationParams = {
     temperature: 0,
     maxTokens: 4096,
   };
 
-  // Configure OpenTelemetry attributes for observability
   span.setAttributes({
-    [OpenInferenceSemanticConventions.LLM_PROVIDER]: 'openai',
-    [OpenInferenceSemanticConventions.LLM_SYSTEM]: 'openai',
-    [OpenInferenceSemanticConventions.LLM_MODEL_NAME]: llmModel,
+    [OpenInferenceSemanticConventions.LLM_PROVIDER]: 'azure',
+    [OpenInferenceSemanticConventions.LLM_SYSTEM]: 'azure_openai',
+    [OpenInferenceSemanticConventions.LLM_MODEL_NAME]: azureDeploymentName || 'unknown',
     [OpenInferenceSemanticConventions.LLM_INVOCATION_PARAMETERS]: JSON.stringify({
       temperature: llmInvocationParams.temperature,
       max_tokens: llmInvocationParams.maxTokens,
@@ -175,13 +170,15 @@ export const openaiLLMCaller: AgentLLMIntegration = async (
 
   // Format conversation history for OpenAI's specific requirements
   const formattedMessages = formatMessagesForOpenAI(messages, systemPrompt ?? undefined);
-  const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
+  const openai = new AzureOpenAI({
+    endpoint: process.env.AZURE_OPENAI_ENDPOINT,
+    apiKey: process.env.AZURE_OPENAI_API_KEY,
+    apiVersion: process.env.AZURE_OPENAI_API_VERSION,
   });
 
   // Use streaming API
   const stream = await openai.chat.completions.create({
-    model: llmModel,
+    model: azureDeploymentName as ChatModel,
     max_tokens: llmInvocationParams.maxTokens,
     temperature: llmInvocationParams.temperature,
     tools: toolDef,

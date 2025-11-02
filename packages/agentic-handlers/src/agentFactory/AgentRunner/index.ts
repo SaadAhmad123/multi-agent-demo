@@ -1,27 +1,27 @@
-import { ArvoOpenTelemetry, getOtelHeaderFromSpan } from 'arvo-core';
-import type {
-  AgentToolDefinition,
-  AgentRunnerExecuteParam,
-  AgentRunnerParam,
-  OtelInfoType,
-  AgentMessage,
-  AgentToolRequest,
-  AgenticToolResultMessageContent,
-  AgentRunnerExecuteOutput,
-  AgentLLMIntegrationOutput,
-  AgentLLMIntegrationParam,
-  AgentConfiguredToolDefinition,
-} from './types.js';
-import {
-  openInferenceSpanInitAttributesSetter,
-  openInferenceSpanOutputAttributesSetter,
-} from './otel.openinference.js';
-import type { Span } from '@opentelemetry/api';
 import {
   SemanticConventions as OpenInferenceSemanticConventions,
   OpenInferenceSpanKind,
 } from '@arizeai/openinference-semantic-conventions';
+import type { Span } from '@opentelemetry/api';
+import { ArvoOpenTelemetry, getOtelHeaderFromSpan } from 'arvo-core';
+import {
+  openInferenceSpanInitAttributesSetter,
+  openInferenceSpanOutputAttributesSetter,
+} from './otel.openinference.js';
 import { streamEmitter } from './stream.js';
+import type {
+  AgentConfiguredToolDefinition,
+  AgentLLMIntegrationOutput,
+  AgentLLMIntegrationParam,
+  AgentMessage,
+  AgentRunnerExecuteOutput,
+  AgentRunnerExecuteParam,
+  AgentRunnerParam,
+  AgentToolDefinition,
+  AgentToolRequest,
+  AgenticToolResultMessageContent,
+  OtelInfoType,
+} from './types.js';
 
 const TOOL_SERVER_PREFIXES = {
   external: 'ext_',
@@ -371,6 +371,9 @@ export class AgentRunner {
           const result = await this.llm(llmParam, {
             span,
             headers: getOtelHeaderFromSpan(span),
+          }).catch((e) => {
+            console.error(e);
+            throw e;
           });
           openInferenceSpanOutputAttributesSetter({ ...result, span });
 
