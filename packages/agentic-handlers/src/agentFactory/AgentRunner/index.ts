@@ -216,11 +216,15 @@ export class AgentRunner {
     const approvedTools = await this.resolveToolApprovals(Boolean(param.toolApproval), otelInfo);
 
     let messages = param.messages;
-    let toolInteractionCount = param.toolInteractions.current;
-    const maxIterations = this.maxToolInteractions + 2;
 
-    for (let iteration = 0; iteration < maxIterations; iteration++) {
-      const isToolBudgetExhausted = toolInteractionCount >= this.maxToolInteractions;
+    // Add some tool iteration buffer to handle issue.
+    const TOOL_INTERACTION_BUFFER = 2;
+    for (
+      let toolInteractionCount = param.toolInteractions.current;
+      toolInteractionCount <= this.maxToolInteractions + TOOL_INTERACTION_BUFFER;
+      toolInteractionCount++
+    ) {
+      const isToolBudgetExhausted = !(toolInteractionCount <= this.maxToolInteractions);
       logToSpan(
         {
           level: isToolBudgetExhausted ? 'WARNING' : 'INFO',
@@ -233,7 +237,7 @@ export class AgentRunner {
           {
             type: 'tool.budget.exhausted',
             data: {
-              toolInteractionCount,
+              toolInteractionCount: toolInteractionCount,
               maxToolInteractions: this.maxToolInteractions,
               selfInformation: param.selfInformation,
               delegatedBy: param.delegatedBy,
@@ -274,7 +278,6 @@ export class AgentRunner {
               ],
             },
           ];
-          toolInteractionCount++;
           continue;
         }
         logToSpan(
@@ -287,7 +290,6 @@ export class AgentRunner {
         return this.createSuccessResponse(messages, llmResponse.response, toolInteractionCount);
       }
 
-      toolInteractionCount++;
       const processedResponse = await this.processToolRequests(
         messages,
         // Only consider the highest prioritized tool calls
@@ -302,11 +304,15 @@ export class AgentRunner {
       messages = processedResponse.messages;
 
       if (processedResponse.externalToolRequests.length > 0) {
-        return this.createToolRequestResponse(messages, processedResponse.externalToolRequests, toolInteractionCount);
+        return this.createToolRequestResponse(
+          messages,
+          processedResponse.externalToolRequests,
+          toolInteractionCount + 1,
+        );
       }
     }
 
-    throw new Error(`Reached maximum tool call hard limit of ${maxIterations}`);
+    throw new Error(`Reached maximum tool call hard limit of ${this.maxToolInteractions}`);
   }
 
   private prioritizeToolRequests(toolRequests: AgentToolRequest[]): AgentToolRequest[] {

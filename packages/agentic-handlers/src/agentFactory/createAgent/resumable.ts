@@ -111,13 +111,16 @@ export const createAgent = <TContract extends AnyAgentContract>({
         const agentExternalToolCallValidator: NonNullable<AgentRunnerExecuteParam['externalToolValidator']> = (
           toolType,
           data,
+          { exhausted },
         ) => {
+          if (exhausted) return null;
           return (
             contracts.services[toolFormatter.reverse(toolType) ?? '']?.accepts?.schema?.safeParse?.(data)?.error ?? null
           );
         };
 
-        const agentOutputValidator: NonNullable<AgentRunnerExecuteParam['outputValidator']> = (data) => {
+        const agentOutputValidator: NonNullable<AgentRunnerExecuteParam['outputValidator']> = (data, { exhausted }) => {
+          if (exhausted) return null;
           return contracts.self.metadata.config.outputFormat?.safeParse(data).error ?? null;
         };
 
