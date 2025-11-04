@@ -21,6 +21,12 @@ export const humanReviewContract = createSimpleArvoContract({
   versions: {
     '1.0.0': {
       accepts: z.object({
+        source: z
+          .object({
+            alias: z.string().optional().describe('Provide your user-facing name if you have one'),
+            id: z.string().describe('Provide your system id'),
+          })
+          .describe('An object containing information about yourself enriching the prompt context'),
         prompt: z.string().describe(
           cleanString(`
             Your message to prompt the user. The user must feel that you are 

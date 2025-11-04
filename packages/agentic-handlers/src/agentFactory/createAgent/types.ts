@@ -1,7 +1,8 @@
 import type { VersionedArvoContract } from 'arvo-core';
 import type { IMachineMemory } from 'arvo-event-handler';
-import type { AgentRunner } from '../AgentRunner/index.js';
+import type { IMCPConnection, IToolApprovalCache } from '../AgentRunner/interfaces.js';
 import type { AgentRunnerEvent } from '../AgentRunner/stream.js';
+import type { AgentContextBuilder, AgentLLMIntegration } from '../AgentRunner/types.js';
 import type { AnyAgentContract } from './contract.js';
 
 export type NonEmptyArray<T> = [T, ...T[]];
@@ -15,8 +16,12 @@ export type AnyVersionedContract = VersionedArvoContract<any, any>;
 
 export type CreateAgentParam<TContract extends AnyAgentContract> = {
   contract: TContract;
-  engine: AgentRunner;
+  llm: AgentLLMIntegration;
+  maxToolInteractions?: number;
+  contextBuilder?: AgentContextBuilder;
   memory: IMachineMemory<Record<string, unknown>>;
+  mcp?: IMCPConnection;
+  approvalCache?: IToolApprovalCache;
   streamListener?: (param: AgentRunnerEvent & { subject: string }) => Promise<void>;
   services?: Record<
     string,

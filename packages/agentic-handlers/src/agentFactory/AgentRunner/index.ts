@@ -3,36 +3,27 @@ import {
   OpenInferenceSpanKind,
 } from '@arizeai/openinference-semantic-conventions';
 import type { Span } from '@opentelemetry/api';
-import { ArvoOpenTelemetry, getOtelHeaderFromSpan } from 'arvo-core';
+import { ArvoOpenTelemetry, exceptionToSpan, getOtelHeaderFromSpan, logToSpan } from 'arvo-core';
 import {
   openInferenceSpanInitAttributesSetter,
   openInferenceSpanOutputAttributesSetter,
 } from './otel.openinference.js';
 import { streamEmitter } from './stream.js';
-import type {
-  AgentConfiguredToolDefinition,
-  AgentLLMIntegrationOutput,
-  AgentLLMIntegrationParam,
-  AgentMessage,
-  AgentRunnerExecuteOutput,
-  AgentRunnerExecuteParam,
-  AgentRunnerParam,
-  AgentToolDefinition,
-  AgentToolRequest,
-  AgenticToolResultMessageContent,
-  OtelInfoType,
+import {
+  type AgentConfiguredToolDefinition,
+  type AgentLLMIntegrationOutput,
+  type AgentLLMIntegrationParam,
+  type AgentMessage,
+  type AgentRunnerExecuteOutput,
+  type AgentRunnerExecuteParam,
+  type AgentRunnerParam,
+  type AgentToolDefinition,
+  type AgentToolRequest,
+  type AgenticToolResultMessageContent,
+  type OtelInfoType,
+  TOOL_SERVER_KIND_PREFIXES,
+  type ToolServerKind,
 } from './types.js';
-
-const TOOL_SERVER_PREFIXES = {
-  external: 'ext_',
-  mcp: 'mcp_',
-} as const;
-
-type ToolServer = keyof typeof TOOL_SERVER_PREFIXES;
-
-type RegisteredTool = AgentConfiguredToolDefinition & {
-  tool_server: ToolServer;
-};
 
 /**
  * Orchestrates agent execution including LLM calls, tool management, and MCP integration.
@@ -45,8 +36,7 @@ export class AgentRunner {
   readonly mcp: NonNullable<AgentRunnerParam['mcp']> | null;
   readonly approvalCache: NonNullable<AgentRunnerParam['approvalCache']> | null;
   readonly maxToolInteractions: number;
-
-  private toolRegistry: Record<string, RegisteredTool> = {};
+  private toolRegistry: Record<string, AgentConfiguredToolDefinition> = {};
 
   constructor(param: AgentRunnerParam) {
     this.name = param.name;
@@ -54,10 +44,7 @@ export class AgentRunner {
     this.contextBuilder = param.contextBuilder;
     this.mcp = param.mcp ?? null;
     this.approvalCache = param.approvalCache ?? null;
-    this.maxToolInteractions =
-      param.maxToolInteractions !== null && param.maxToolInteractions !== undefined
-        ? Math.max(param.maxToolInteractions, 1)
-        : 5;
+    this.maxToolInteractions = param.maxToolInteractions || 5;
   }
 
   /**
@@ -134,12 +121,25 @@ export class AgentRunner {
             data: {
               lifecycle: param.lifecycle,
               messageCount: param.messages.length,
-              toolCount: param.tools.length,
+              toolCount: param.externalTools.length,
               selfInformation: param.selfInformation,
               delegatedBy: param.delegatedBy,
             },
           },
           param.stream,
+        );
+
+        logToSpan(
+          {
+            level: 'INFO',
+            message: 'Agent execution started',
+            lifecycle: param.lifecycle,
+            messageCount: param.messages.length.toString(),
+            toolCount: param.externalTools.length.toString(),
+            selfInformation: JSON.stringify(param.selfInformation),
+            delegatedBy: JSON.stringify(param.delegatedBy),
+          },
+          span,
         );
 
         try {
@@ -188,7 +188,7 @@ export class AgentRunner {
     await this.mcp?.connect(otelInfo);
 
     const mcpTools = (await this.mcp?.getTools(otelInfo)) ?? [];
-    const externalTools = [...param.tools];
+    const externalTools = [...param.externalTools];
     if (param.toolApproval) {
       externalTools.push(param.toolApproval);
     }
@@ -197,19 +197,38 @@ export class AgentRunner {
     }
     this.registerTools(externalTools, 'external');
     this.registerTools(mcpTools, 'mcp');
+
+    logToSpan(
+      {
+        level: 'INFO',
+        message: 'Tool registration complete',
+        tools: JSON.stringify(Object.keys(this.toolRegistry)),
+        toolCount: Object.keys(this.toolRegistry).length.toString(),
+      },
+      otelInfo.span,
+    );
   }
 
   private async runExecutionLoop(
     param: AgentRunnerExecuteParam,
     otelInfo: OtelInfoType,
   ): Promise<AgentRunnerExecuteOutput> {
-    const agentTools = await this.resolveToolApprovals(Boolean(param.toolApproval), otelInfo);
+    const approvedTools = await this.resolveToolApprovals(Boolean(param.toolApproval), otelInfo);
+
     let messages = param.messages;
     let toolInteractionCount = param.toolInteractions.current;
     const maxIterations = this.maxToolInteractions + 2;
 
     for (let iteration = 0; iteration < maxIterations; iteration++) {
-      if (toolInteractionCount >= this.maxToolInteractions) {
+      const isToolBudgetExhausted = toolInteractionCount >= this.maxToolInteractions;
+      logToSpan(
+        {
+          level: isToolBudgetExhausted ? 'WARNING' : 'INFO',
+          message: `Tool interaction budget (${toolInteractionCount}/${this.maxToolInteractions})`,
+        },
+        otelInfo.span,
+      );
+      if (isToolBudgetExhausted) {
         streamEmitter(
           {
             type: 'tool.budget.exhausted',
@@ -224,11 +243,47 @@ export class AgentRunner {
         );
       }
 
-      const context = await this.buildContext(param, messages, agentTools, toolInteractionCount, otelInfo);
-      const llmResponse = await this.callLLM(context, param, agentTools, otelInfo);
+      const context = await this.buildContext(param, messages, approvedTools, toolInteractionCount, otelInfo);
+      const llmResponse = await this.callLLM(context, param, this.formatToolsForLLM(approvedTools), otelInfo);
 
       if (llmResponse.response !== null) {
         messages = this.integrateLLMResponse(messages, llmResponse.response);
+        const validationError = param.outputValidator?.(llmResponse.response, {
+          current: toolInteractionCount,
+          max: this.maxToolInteractions,
+          exhausted: isToolBudgetExhausted,
+        });
+        if (validationError) {
+          logToSpan(
+            {
+              level: 'INFO',
+              message: 'LLM final response invalid',
+            },
+            otelInfo.span,
+          );
+          exceptionToSpan(validationError, otelInfo.span);
+          messages = [
+            ...messages,
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  content: `Your response failed validation and cannot be accepted. Review the error below, then provide a corrected response that strictly adheres to the required format and constraints.\n\nValidation error: ${validationError.message}`,
+                },
+              ],
+            },
+          ];
+          toolInteractionCount++;
+          continue;
+        }
+        logToSpan(
+          {
+            level: 'INFO',
+            message: 'LLM finalized response',
+          },
+          otelInfo.span,
+        );
         return this.createSuccessResponse(messages, llmResponse.response, toolInteractionCount);
       }
 
@@ -241,6 +296,7 @@ export class AgentRunner {
         // other tool call
         this.prioritizeToolRequests(llmResponse.toolRequests),
         param,
+        { current: toolInteractionCount, max: this.maxToolInteractions, exhausted: isToolBudgetExhausted },
         otelInfo,
       );
       messages = processedResponse.messages;
@@ -254,35 +310,35 @@ export class AgentRunner {
   }
 
   private prioritizeToolRequests(toolRequests: AgentToolRequest[]): AgentToolRequest[] {
-    const unprioritized: AgentToolRequest[] = [];
-    const prioritized: Record<string, AgentToolRequest[]> = {};
-    for (const item of toolRequests) {
-      const priority = this.toolRegistry[item.type]?.priority ?? 0;
-      if (priority > 0) {
-        const strPriority = priority.toString();
-        prioritized[strPriority] = [...(prioritized[strPriority] ?? []), item];
-      } else {
-        unprioritized.push(item);
-      }
+    const grouped = new Map<number, AgentToolRequest[]>();
+
+    for (const request of toolRequests) {
+      const priority = this.toolRegistry[request.type]?.priority ?? 0;
+      const existing = grouped.get(priority) ?? [];
+      existing.push(request);
+      grouped.set(priority, existing);
     }
-    const highestPriority =
-      Object.keys(prioritized)
-        .map(Number.parseInt)
-        .sort((a, b) => b - a)[0] ?? 0;
-    if (highestPriority > 0) {
-      // biome-ignore lint/style/noNonNullAssertion: This is not null
-      return prioritized[highestPriority.toString()]!;
-    }
-    return unprioritized;
+
+    const priorities = Array.from(grouped.keys()).sort((a, b) => b - a);
+    const highestPriority = priorities[0] ?? 0;
+
+    return grouped.get(highestPriority) ?? [];
   }
 
   private async buildContext(
     param: AgentRunnerExecuteParam,
     messages: AgentMessage[],
-    tools: RegisteredTool[],
+    tools: AgentConfiguredToolDefinition[],
     toolInteractionCount: number,
     otelInfo: OtelInfoType,
   ) {
+    logToSpan(
+      {
+        level: 'INFO',
+        message: 'Building context for the agent',
+      },
+      otelInfo.span,
+    );
     streamEmitter(
       {
         type: 'context.build.started',
@@ -306,10 +362,15 @@ export class AgentRunner {
           ? {
               ...param.humanReview,
               agentic_name: this.createToolAgenticName(param.humanReview, 'external'),
+              tool_server_kind: 'external',
             }
           : null,
         toolApproval: param.toolApproval
-          ? { ...param.toolApproval, agentic_name: this.createToolAgenticName(param.toolApproval, 'external') }
+          ? {
+              ...param.toolApproval,
+              agentic_name: this.createToolAgenticName(param.toolApproval, 'external'),
+              tool_server_kind: 'external',
+            }
           : null,
       },
       otelInfo,
@@ -330,7 +391,7 @@ export class AgentRunner {
   private async callLLM(
     context: { messages: AgentMessage[]; systemPrompt: string | null },
     param: AgentRunnerExecuteParam,
-    agentTools: RegisteredTool[], // Add this parameter
+    agentTools: AgentLLMIntegrationParam['tools'],
     otelInfo: OtelInfoType,
   ): Promise<AgentLLMIntegrationOutput> {
     return await ArvoOpenTelemetry.getInstance().startActiveSpan({
@@ -368,13 +429,39 @@ export class AgentRunner {
           };
 
           openInferenceSpanInitAttributesSetter({ ...llmParam, span });
+
+          logToSpan(
+            {
+              level: 'INFO',
+              message: 'Calling the LLM intergration for agent inference',
+            },
+            span,
+          );
+
           const result = await this.llm(llmParam, {
             span,
             headers: getOtelHeaderFromSpan(span),
           }).catch((e) => {
+            logToSpan(
+              {
+                level: 'ERROR',
+                message: 'LLM Inference failed',
+              },
+              span,
+            );
+            exceptionToSpan(e as Error, span);
             console.error(e);
             throw e;
           });
+
+          logToSpan(
+            {
+              level: 'INFO',
+              message: 'LLM inference success',
+            },
+            span,
+          );
+
           openInferenceSpanOutputAttributesSetter({ ...result, span });
 
           streamEmitter(
@@ -404,17 +491,17 @@ export class AgentRunner {
     });
   }
 
-  private createToolAgenticName(tool: AgentToolDefinition, toolServer: ToolServer) {
-    return `${TOOL_SERVER_PREFIXES[toolServer]}${tool.name}`;
+  private createToolAgenticName(tool: AgentToolDefinition, toolServer: ToolServerKind) {
+    return `${TOOL_SERVER_KIND_PREFIXES[toolServer]}${tool.name}`;
   }
 
-  private registerTools(tools: AgentToolDefinition[], toolServer: ToolServer): void {
+  private registerTools(tools: AgentToolDefinition[], toolServer: ToolServerKind): void {
     for (const tool of tools) {
       const agenticName = this.createToolAgenticName(tool, toolServer);
       this.toolRegistry[agenticName] = {
         ...tool,
         agentic_name: agenticName,
-        tool_server: toolServer,
+        tool_server_kind: toolServer,
       };
     }
   }
@@ -422,32 +509,47 @@ export class AgentRunner {
   private async resolveToolApprovals(
     isApprovalToolProvided: boolean,
     parentSpan: OtelInfoType,
-  ): Promise<RegisteredTool[]> {
+  ): Promise<AgentConfiguredToolDefinition[]> {
+    logToSpan({ level: 'INFO', message: 'Resolving tool approval requirements' }, parentSpan.span);
     if (!isApprovalToolProvided) {
-      return this.formatToolsForLLM(
-        Object.values(this.toolRegistry).map((item) => ({ ...item, requires_approval: false })),
+      logToSpan(
+        {
+          level: 'INFO',
+          message: 'Tool Approval not available because the concerned tool/option is not configured',
+        },
+        parentSpan.span,
       );
+      return Object.values(this.toolRegistry).map((item) => ({ ...item, requires_approval: false }));
     }
 
-    const resolvedTools: Record<string, RegisteredTool> = {};
-    const toolsRequiringApproval: string[] = [];
+    let resolvedTools: Record<string, AgentConfiguredToolDefinition> = {};
+    const toolsApprovalCacheCheck: string[] = [];
     for (const [name, tool] of Object.entries(this.toolRegistry)) {
       resolvedTools[name] = tool;
       if (tool.requires_approval && this.approvalCache) {
-        toolsRequiringApproval.push(name);
+        toolsApprovalCacheCheck.push(tool.agentic_name);
       }
     }
-    if (toolsRequiringApproval.length > 0) {
-      await this.applyCachedApprovals(resolvedTools, toolsRequiringApproval, parentSpan);
-    }
-    return this.formatToolsForLLM(Object.values(resolvedTools));
+
+    logToSpan(
+      {
+        level: 'INFO',
+        message: `Hitting caches for existing approvals for ${toolsApprovalCacheCheck.length} tools`,
+        tools: JSON.stringify(toolsApprovalCacheCheck),
+      },
+      parentSpan.span,
+    );
+    resolvedTools = await this.applyCachedApprovals(resolvedTools, toolsApprovalCacheCheck, parentSpan);
+    return Object.values(resolvedTools);
   }
 
   private async applyCachedApprovals(
-    resolvedTools: Record<string, RegisteredTool>,
+    _resolvedTools: Record<string, AgentConfiguredToolDefinition>,
     toolNames: string[],
     parentSpan: OtelInfoType,
-  ): Promise<void> {
+  ): Promise<Record<string, AgentConfiguredToolDefinition>> {
+    if (!toolNames.length) return _resolvedTools;
+    const resolvedTools = { ..._resolvedTools };
     const approvals = (await this.approvalCache?.getBatched(this.name, toolNames, parentSpan)) ?? {};
 
     for (const [name, approval] of Object.entries(approvals)) {
@@ -455,11 +557,12 @@ export class AgentRunner {
         resolvedTools[name].requires_approval = !approval.value;
       }
     }
+
+    return resolvedTools;
   }
 
-  private formatToolsForLLM(tools: RegisteredTool[]): RegisteredTool[] {
+  private formatToolsForLLM(tools: AgentConfiguredToolDefinition[]): AgentLLMIntegrationParam['tools'] {
     return tools.map((tool) => ({
-      ...tool,
       name: tool.agentic_name,
       description: tool.requires_approval ? `[[REQUIRES APPROVAL]]\n${tool.description}` : tool.description,
       input_schema: tool.input_schema,
@@ -485,8 +588,17 @@ export class AgentRunner {
     messages: AgentMessage[],
     toolRequests: AgentToolRequest[],
     param: AgentRunnerExecuteParam,
+    toolInteractionBudget: { current: number; max: number; exhausted: boolean },
     parentSpan: OtelInfoType,
   ) {
+    logToSpan(
+      {
+        level: 'INFO',
+        message: 'LLM requested tool calls',
+      },
+      parentSpan.span,
+    );
+
     let updatedMessages = [...messages];
     const externalToolRequests: AgentToolRequest[] = [];
     const mcpInvocations: Promise<AgenticToolResultMessageContent>[] = [];
@@ -494,11 +606,25 @@ export class AgentRunner {
     for (const request of toolRequests) {
       const tool = this.toolRegistry[request.type];
       updatedMessages = this.addToolUseMessage(updatedMessages, request);
+
       if (!tool) {
-        updatedMessages = this.addToolErrorMessage(updatedMessages, request.id);
+        exceptionToSpan(new Error(`LLM generated tool call (${request.type}) does not exist`), parentSpan.span);
+        updatedMessages = this.addToolErrorMessage(
+          updatedMessages,
+          request.id,
+          "The tool cannot be executed, please don't use it again.",
+        );
         continue;
       }
-      if (tool.tool_server === 'mcp') {
+
+      if (tool.tool_server_kind === 'mcp') {
+        logToSpan(
+          {
+            level: 'INFO',
+            message: `Invoking LLM requested MCP tool (${tool.name} - AgenticName: ${tool.agentic_name})`,
+          },
+          parentSpan.span,
+        );
         streamEmitter(
           {
             type: 'tool.mcp.executing',
@@ -511,16 +637,44 @@ export class AgentRunner {
           param.stream,
         );
         mcpInvocations.push(this.invokeMCPTool(request, tool.name, parentSpan));
-      } else if (tool.tool_server === 'external') {
-        externalToolRequests.push({
-          ...request,
-          type: tool.name,
-        });
+        continue;
+      }
+
+      if (tool.tool_server_kind === 'external') {
+        logToSpan(
+          {
+            level: 'INFO',
+            message: `LLM requested external tool call (${tool.name} - AgenticName: ${tool.agentic_name})`,
+          },
+          parentSpan.span,
+        );
+        const validationError = param.externalToolValidator?.(tool.name, request.data, toolInteractionBudget);
+        if (validationError) {
+          exceptionToSpan(validationError, parentSpan.span);
+          updatedMessages = this.addToolErrorMessage(
+            updatedMessages,
+            request.id,
+            `Tool call failed validation: ${validationError.message}. Please correct the arguments and retry (if possible).`,
+          );
+        } else {
+          externalToolRequests.push({
+            ...request,
+            type: tool.name,
+          });
+        }
       }
     }
 
     const mcpResults = await Promise.all(mcpInvocations);
     updatedMessages = this.addToolResults(updatedMessages, mcpResults);
+
+    logToSpan(
+      {
+        level: 'INFO',
+        message: `Invoked MCP (${mcpResults.length}) tools and collected outcomes. Prepared (${externalToolRequests.length}) external tools calls`,
+      },
+      parentSpan.span,
+    );
 
     return {
       messages: updatedMessages,
@@ -533,13 +687,29 @@ export class AgentRunner {
     toolName: string,
     parentSpan: OtelInfoType,
   ): Promise<AgenticToolResultMessageContent> {
-    const response =
-      (await this.mcp?.invokeTool({ name: toolName, arguments: request.data }, parentSpan)) ?? 'No response available';
-    return {
-      type: 'tool_result',
-      tool_use_id: request.id,
-      content: response,
-    };
+    try {
+      const response =
+        (await this.mcp?.invokeTool({ name: toolName, arguments: request.data }, parentSpan)) ??
+        'No response available';
+      return {
+        type: 'tool_result',
+        tool_use_id: request.id,
+        content: response,
+      };
+    } catch (e) {
+      logToSpan(
+        {
+          level: 'ERROR',
+          message: `MCP tool (${toolName} invocation failed. ${(e as Error).message}`,
+        },
+        parentSpan.span,
+      );
+      return {
+        type: 'tool_result',
+        tool_use_id: request.id,
+        content: `Tool invocation failed. Error ${(e as Error).message}`,
+      };
+    }
   }
 
   private addToolUseMessage(messages: AgentMessage[], request: AgentToolRequest): AgentMessage[] {
@@ -559,7 +729,7 @@ export class AgentRunner {
     ];
   }
 
-  private addToolErrorMessage(messages: AgentMessage[], toolUseId: string): AgentMessage[] {
+  private addToolErrorMessage(messages: AgentMessage[], toolUseId: string, error: string): AgentMessage[] {
     return [
       ...messages,
       {
@@ -568,7 +738,7 @@ export class AgentRunner {
           {
             type: 'tool_result',
             tool_use_id: toolUseId,
-            content: "The tool cannot be executed, please don't use it again.",
+            content: error,
           },
         ],
       },

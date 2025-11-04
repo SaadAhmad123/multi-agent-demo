@@ -35,7 +35,7 @@ export type AgentStreamFunction = (param: AgentRunnerEvent) => Promise<void>;
 export type AgentRunnerExecuteParam = {
   lifecycle: AgentRunnerLifecycleType;
   messages: AgentMessage[];
-  tools: AgentToolDefinition[];
+  externalTools: AgentToolDefinition[];
   toolInteractions: {
     current: number;
   };
@@ -53,6 +53,19 @@ export type AgentRunnerExecuteParam = {
   toolApproval: AgentToolDefinition | null;
   humanReview: AgentToolDefinition | null;
   stream: AgentStreamFunction | null;
+  outputValidator:
+    | ((
+        data: string | Record<string, unknown> | object,
+        toolInteractionBudget: { current: number; max: number; exhausted: boolean },
+      ) => Error | null)
+    | null;
+  externalToolValidator:
+    | ((
+        type: string,
+        data: Record<string, unknown>,
+        toolInteractionBudget: { current: number; max: number; exhausted: boolean },
+      ) => Error | null)
+    | null;
 };
 
 export type AgentRunnerExecuteOutput = {
@@ -77,8 +90,16 @@ export type AgentContextBuilderOutput = {
   messages: AgentMessage[];
 };
 
+export const TOOL_SERVER_KIND_PREFIXES = {
+  external: 'ext_',
+  mcp: 'mcp_',
+} as const;
+
+export type ToolServerKind = keyof typeof TOOL_SERVER_KIND_PREFIXES;
+
 export type AgentConfiguredToolDefinition = AgentToolDefinition & {
   agentic_name: string;
+  tool_server_kind: ToolServerKind;
 };
 
 export type AgentContextBuilderParam = Omit<
@@ -103,7 +124,7 @@ export type AgentLLMIntegrationParam = {
   lifecycle: AgentRunnerExecuteParam['lifecycle'];
   systemPrompt: string | null;
   messages: AgentRunnerExecuteParam['messages'];
-  tools: Omit<AgentToolDefinition, 'requires_approval'>[];
+  tools: Pick<AgentToolDefinition, 'description' | 'input_schema' | 'name'>[];
   outputFormat: NonNullable<AgentRunnerExecuteParam['outputFormat']> | null;
   stream: AgentRunnerExecuteParam['stream'];
   selfInformation: AgentRunnerExecuteParam['selfInformation'];

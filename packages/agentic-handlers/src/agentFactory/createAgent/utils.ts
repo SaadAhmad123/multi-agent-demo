@@ -2,11 +2,11 @@ import { type ArvoEvent, type InferArvoEvent, VersionedArvoContract } from 'arvo
 import type { EnqueueArvoEventActionParam } from 'arvo-event-handler';
 import { v4 as uuid4 } from 'uuid';
 import type { AgentMessage, AgentToolDefinition, AgentToolRequest } from '../AgentRunner/types.js';
-import type { AgentContract } from './contract.js';
+import type { AnyAgentContract } from './contract.js';
 import type { AnyVersionedContract, CreateAgentParam } from './types.js';
 
 export const createToolDefinition = (
-  contract: NonNullable<CreateAgentParam<AgentContract>['services']>[string],
+  contract: NonNullable<CreateAgentParam<AnyAgentContract>['services']>[string],
   priority?: number,
 ): AgentToolDefinition & { domains?: string[] } => {
   const resolvedContract =
@@ -43,7 +43,7 @@ export const resolveServiceToolDefinition = (
     services,
     toolApproval,
     humanReview,
-  }: Pick<CreateAgentParam<AgentContract>, 'services' | 'toolApproval' | 'humanReview'>,
+  }: Pick<CreateAgentParam<AnyAgentContract>, 'services' | 'toolApproval' | 'humanReview'>,
   config: {
     toolApprovalContract: AnyVersionedContract;
     humanReviewContract: AnyVersionedContract;

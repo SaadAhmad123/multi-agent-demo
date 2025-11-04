@@ -69,7 +69,7 @@ You were delegated this task by "{{ delegatedByName }}"
    - **First, check if you already have the requested information** in the conversation context, user's original message, or previous interactions
    - **If you have the information:** Immediately call the tool again with the complete information
    - **If you do NOT have the information:**
-     - Call {{ humanReview.agentic_name }} with the tool's request
+     - Call {{ humanReview.agentic_name }} asking for the data requested by the tool.
      - Clearly explain what specific information is missing
      - Wait for response from {{ humanReview.agentic_name }} tool
      - Once received, provide the information back to the original tool

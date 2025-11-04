@@ -11,7 +11,7 @@ export const anthropicLLMCaller: AgentLLMIntegration = async (
   {
     messages,
     outputFormat,
-    tools,
+    tools: toolDef,
     systemPrompt,
     stream: eventStreamer,
     selfInformation: _selfInformation,
@@ -36,16 +36,6 @@ export const anthropicLLMCaller: AgentLLMIntegration = async (
       max_tokens: llmInvocationParams.maxTokens,
     }),
   });
-
-  // Convert tool names to Anthropic-compatible format
-  const toolDef: Array<{
-    name: string;
-    description: string;
-    input_schema: Record<string, unknown>;
-  }> = [];
-  for (const { name, description, input_schema } of tools) {
-    toolDef.push({ name, description, input_schema });
-  }
 
   /**
    * Converts agentic message format to Anthropic's expected structure.

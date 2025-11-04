@@ -4,6 +4,7 @@ import * as dotenv from 'dotenv';
 import { AzureOpenAI } from 'openai';
 import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/index.mjs';
 import type { ChatModel } from 'openai/resources/shared.mjs';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import type {
   AgentLLMIntegration,
   AgentLLMIntegrationOutput,
@@ -11,22 +12,8 @@ import type {
   AgenticToolResultMessageContent,
 } from '../AgentRunner/types.js';
 import { tryParseJson } from './utils.jsonParse.js';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 dotenv.config();
 
-/**
- * Converts Arvo agentic messages to OpenAI-compatible chat completion format.
- *
- * Performs critical transformations required by OpenAI's API:
- * - Injects system prompts as developer role messages (OpenAI's preferred approach)
- * - Flattens Arvo's nested content arrays into individual messages
- * - Ensures tool calls are immediately followed by their results (strict OpenAI requirement)
- * - Maps agentic message types to OpenAI's schema while preserving conversation flow
- *
- * @param messages - Conversation history in agentic message format
- * @param systemPrompt - Optional system prompt to inject as developer message
- * @returns Array of OpenAI-compatible chat completion messages
- */
 const formatMessagesForOpenAI = (
   messages: AgentLLMIntegrationParam['messages'],
   systemPrompt?: string,
@@ -105,24 +92,6 @@ const formatMessagesForOpenAI = (
   return formatedMessages;
 };
 
-/**
- * OpenAI ChatGPT integration for agentic LLM calls within Arvo orchestrators.
- *
- * Bridges Arvo's contract-based event system with OpenAI's GPT models, enabling
- * AI agents to make intelligent tool decisions and generate responses within Arvo's
- * event-driven architecture. Handles the complex message formatting and tool
- * conversion required for OpenAI's API while maintaining Arvo's type safety.
- *
- * ## OpenAI-Specific Handling
- * - Tool calls must be immediately followed by their results in message history
- * - Function names cannot contain dots, requiring automatic name conversion
- * - System prompts are injected as developer role messages for better adherence
- *
- * @returns Promise resolving to structured LLM output with either
- * a direct text response or tool requests
- *
- * @throws {Error} If OpenAI provides neither a response nor tool requests
- */
 export const azureOpenaiLLMCaller: AgentLLMIntegration = async (
   {
     messages,

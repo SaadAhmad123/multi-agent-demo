@@ -4,8 +4,14 @@ import {
 } from '@arizeai/openinference-semantic-conventions';
 import { type InferVersionedArvoContract, exceptionToSpan, getOtelHeaderFromSpan } from 'arvo-core';
 import { createArvoResumable } from 'arvo-event-handler';
-import type { AgentMessage, AgentToolDefinition, AgentToolRequest } from '../AgentRunner/types.js';
-import type { AgentContract, createAgentContract } from './contract.js';
+import { AgentRunner } from '../AgentRunner/index.js';
+import type {
+  AgentMessage,
+  AgentRunnerExecuteParam,
+  AgentToolDefinition,
+  AgentToolRequest,
+} from '../AgentRunner/types.js';
+import type { AnyAgentContract, createAgentContract } from './contract.js';
 import { humanReviewContract } from './contracts/humanReview.js';
 import { toolApprovalContract } from './contracts/toolApproval.js';
 import { createAgentToolNameStringFormatter } from './formatter.js';
@@ -20,7 +26,7 @@ import {
 } from './utils.js';
 
 // a ArvoOrchestratorContract under the hood.
-type ResolveSelfContractType<TContract extends AgentContract> = ReturnType<
+type ResolveSelfContractType<TContract extends AnyAgentContract> = ReturnType<
   typeof createAgentContract<
     TContract['metadata']['config']['uri'],
     TContract['metadata']['config']['name'],
@@ -40,12 +46,16 @@ type AgentContext = {
   } | null;
 };
 
-export const createAgent = <TContract extends AgentContract>({
+export const createAgent = <TContract extends AnyAgentContract>({
   contract,
   services,
   toolApproval,
   humanReview,
-  engine,
+  llm,
+  maxToolInteractions,
+  contextBuilder,
+  mcp,
+  approvalCache,
   memory,
   streamListener,
 }: CreateAgentParam<TContract>) => {
@@ -59,6 +69,7 @@ export const createAgent = <TContract extends AgentContract>({
     },
     { humanReviewContract: humanReviewVersionedContract, toolApprovalContract: toolApprovalVersionedContract },
   );
+
   return createArvoResumable({
     contracts: {
       self: contract as ResolveSelfContractType<TContract>,
@@ -73,6 +84,20 @@ export const createAgent = <TContract extends AgentContract>({
       '1.0.0': async ({ span, contracts, input, context, service, collectedEvents, metadata }) => {
         span.setAttribute(OpenInferenceSemanticConventions.OPENINFERENCE_SPAN_KIND, OpenInferenceSpanKind.AGENT);
 
+        const engine = new AgentRunner({
+          name: contracts.self.accepts.type,
+          llm: llm,
+          maxToolInteractions: maxToolInteractions,
+          contextBuilder:
+            contextBuilder ??
+            (async (param) => ({
+              messages: param.messages,
+              systemPrompt: null,
+            })),
+          mcp: mcp,
+          approvalCache: approvalCache,
+        });
+
         const toolFormatter = createAgentToolNameStringFormatter();
         const formatToolDefinition = (tool: AgentToolDefinition) => ({
           ...tool,
@@ -82,6 +107,19 @@ export const createAgent = <TContract extends AgentContract>({
           ...req,
           type: toolFormatter.reverse(req.type) ?? req.type,
         });
+
+        const agentExternalToolCallValidator: NonNullable<AgentRunnerExecuteParam['externalToolValidator']> = (
+          toolType,
+          data,
+        ) => {
+          return (
+            contracts.services[toolFormatter.reverse(toolType) ?? '']?.accepts?.schema?.safeParse?.(data)?.error ?? null
+          );
+        };
+
+        const agentOutputValidator: NonNullable<AgentRunnerExecuteParam['outputValidator']> = (data) => {
+          return contracts.self.metadata.config.outputFormat?.safeParse(data).error ?? null;
+        };
 
         const toolDefinitions = {
           services: resolvedParams.toolDefinitions.services.map(formatToolDefinition),
@@ -112,12 +150,12 @@ export const createAgent = <TContract extends AgentContract>({
                     }
                   : null,
                 message: input.data.message,
-                outputFormat: contract.metadata.config.outputFormat ?? null,
-                tools: toolDefinitions.services,
+                outputFormat: contracts.self.metadata.config.outputFormat ?? null,
+                externalTools: toolDefinitions.services,
                 selfInformation: {
-                  alias: contract.metadata.config.alias ?? null,
+                  alias: contracts.self.metadata.config.alias ?? null,
                   source: contracts.self.accepts.type,
-                  description: contract.description ?? '',
+                  description: contracts.self.description ?? '',
                   agentic_source: toolFormatter.format(contracts.self.accepts.type),
                 },
                 delegatedBy: input.data.delagationSource
@@ -128,6 +166,8 @@ export const createAgent = <TContract extends AgentContract>({
                   : null,
                 toolApproval: toolDefinitions.toolApproval,
                 humanReview: toolDefinitions.humanReview,
+                outputValidator: agentOutputValidator,
+                externalToolValidator: agentExternalToolCallValidator,
               },
               parentSpanConfig,
             )
@@ -156,7 +196,7 @@ export const createAgent = <TContract extends AgentContract>({
               ? createOutput(
                   result.response,
                   result.messages,
-                  contract.metadata.config.enableMessageHistoryInResponse ?? false,
+                  contracts.self.metadata.config.enableMessageHistoryInResponse ?? false,
                 )
               : undefined,
             services: result.toolRequests
@@ -210,20 +250,22 @@ export const createAgent = <TContract extends AgentContract>({
                 : null,
               messages: context.messages,
               toolResults,
-              tools: toolDefinitions.services,
+              externalTools: toolDefinitions.services,
               toolInteractions: {
                 current: context.toolInteractionCount,
               },
               selfInformation: {
-                alias: contract.metadata.config.alias ?? null,
+                alias: contracts.self.metadata.config.alias ?? null,
                 source: contracts.self.accepts.type,
-                description: contract.description ?? '',
+                description: contracts.self.description ?? '',
                 agentic_source: toolFormatter.format(contracts.self.accepts.type),
               },
               delegatedBy: context.delegatedBy,
-              outputFormat: contract.metadata.config.outputFormat ?? null,
+              outputFormat: contracts.self.metadata.config.outputFormat ?? null,
               toolApproval: toolDefinitions.toolApproval,
               humanReview: toolDefinitions.humanReview,
+              outputValidator: agentOutputValidator,
+              externalToolValidator: agentExternalToolCallValidator,
             },
             parentSpanConfig,
           )
@@ -245,7 +287,7 @@ export const createAgent = <TContract extends AgentContract>({
             ? createOutput(
                 result.response,
                 result.messages,
-                contract.metadata.config.enableMessageHistoryInResponse ?? false,
+                contracts.self.metadata.config.enableMessageHistoryInResponse ?? false,
               )
             : undefined,
           services: result.toolRequests
