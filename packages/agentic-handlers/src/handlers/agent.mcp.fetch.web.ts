@@ -3,7 +3,6 @@ import { MCPClient } from '../agentFactory/integrations/MCPClient.js';
 import { openaiLLMCaller } from '../agentFactory/integrations/openai.js';
 import { createAgentContract } from '../agentFactory/createAgent/contract.js';
 import { createAgent } from '../agentFactory/createAgent/resumable.js';
-import { AgentRunner } from '../agentFactory/AgentRunner/index.js';
 import type { EventHandlerFactory, IMachineMemory } from 'arvo-event-handler';
 import { withDefaultContextBuilder } from '../agentFactory/createAgent/prompts.js';
 
@@ -24,8 +23,8 @@ export const fetchWebMcpAgent: EventHandlerFactory<{
 }> = ({ memory }) => {
   const mcpClient = new MCPClient(() => ({ url: 'https://remote.mcpservers.org/fetch/mcp' }));
 
-  const engine = new AgentRunner({
-    name: fetchWebMcpAgentContract.type,
+  return createAgent({
+    contract: fetchWebMcpAgentContract,
     llm: openaiLLMCaller,
     mcp: mcpClient,
     contextBuilder: withDefaultContextBuilder(
@@ -78,11 +77,6 @@ export const fetchWebMcpAgent: EventHandlerFactory<{
         </limitations>
       `),
     ),
-  });
-
-  return createAgent({
-    contract: fetchWebMcpAgentContract,
-    engine,
     memory,
   });
 };

@@ -3,7 +3,6 @@ import { openaiLLMCaller } from '../agentFactory/integrations/openai.js';
 import { cleanString } from 'arvo-core';
 import { createAgentContract } from '../agentFactory/createAgent/contract.js';
 import { createAgent } from '../agentFactory/createAgent/resumable.js';
-import { AgentRunner } from '../agentFactory/AgentRunner/index.js';
 import type { EventHandlerFactory, IMachineMemory } from 'arvo-event-handler';
 import type { NonEmptyArray } from '../agentFactory/createAgent/types.js';
 import { withDefaultContextBuilder } from '../agentFactory/createAgent/prompts.js';
@@ -35,8 +34,8 @@ export const astroDocsMcpAgent: EventHandlerFactory<{
     restrictedTools: ['search_astro_docs'],
   }));
 
-  const engine = new AgentRunner({
-    name: astroDocsMcpAgentContract.type,
+  return createAgent({
+    contract: astroDocsMcpAgentContract,
     llm: openaiLLMCaller,
     mcp: mcpClient,
     contextBuilder: withDefaultContextBuilder(
@@ -70,11 +69,6 @@ export const astroDocsMcpAgent: EventHandlerFactory<{
         - If a search returns no results, try reformulating your query with different keywords
       `),
     ),
-  });
-
-  return createAgent({
-    contract: astroDocsMcpAgentContract,
-    engine,
     memory,
     services: {
       fetchWebMcpAgent: fetchWebMcpAgentContract.version('1.0.0'),

@@ -4,7 +4,6 @@ import { anthropicLLMCaller } from '../agentFactory/integrations/anthropic.js';
 import type { EventHandlerFactory, IMachineMemory } from 'arvo-event-handler';
 import { createAgentContract } from '../agentFactory/createAgent/contract.js';
 import type { NonEmptyArray } from '../agentFactory/createAgent/types.js';
-import { AgentRunner } from '../agentFactory/AgentRunner/index.js';
 import { createAgent } from '../agentFactory/createAgent/resumable.js';
 import { withDefaultContextBuilder } from '../agentFactory/createAgent/prompts.js';
 
@@ -26,8 +25,8 @@ export const calculatorAgent: EventHandlerFactory<{
   memory: IMachineMemory<Record<string, unknown>>;
   humanInteractionDomain?: NonEmptyArray<string>;
 }> = ({ memory, humanInteractionDomain }) => {
-  const engine = new AgentRunner({
-    name: calculatorAgentContract.type,
+  return createAgent({
+    contract: calculatorAgentContract,
     llm: anthropicLLMCaller,
     contextBuilder: withDefaultContextBuilder(
       cleanString(`
@@ -46,11 +45,6 @@ export const calculatorAgent: EventHandlerFactory<{
         - Verify your calculations before returning final results
       `),
     ),
-  });
-
-  return createAgent({
-    contract: calculatorAgentContract,
-    engine,
     memory,
     services: {
       calculatorHandler: calculatorContract.version('1.0.0'),

@@ -33,8 +33,8 @@ export const findDomainMcpAgent: EventHandlerFactory<{
 }> = ({ memory }) => {
   const mcpClient = new MCPClient(() => ({ url: 'https://api.findadomain.dev/mcp' }));
 
-  const engine = new AgentRunner({
-    name: findDomainMcpAgentContract.type,
+  return createAgent({
+    contract: findDomainMcpAgentContract,
     llm: openaiLLMCaller,
     maxToolInteractions: 2,
     mcp: mcpClient,
@@ -61,11 +61,6 @@ export const findDomainMcpAgent: EventHandlerFactory<{
         </system_instructions>
       `),
     ),
-  });
-
-  return createAgent({
-    contract: findDomainMcpAgentContract,
-    engine,
     memory,
     services: {},
   });

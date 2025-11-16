@@ -23,8 +23,8 @@ export const zapierGoogleDocsMcpAgent: EventHandlerFactory<{
 }> = ({ memory, humanInteractionDomain }) => {
   const mcpClient = new MCPClient(() => ({ url: process.env.ZAPIER_MCP_INTEGRATION_URL_GOOGLE_DOCS || 'no url' }));
 
-  const engine = new AgentRunner({
-    name: zapierGoogleDocsMcpAgentContract.type,
+  return createAgent({
+    contract: zapierGoogleDocsMcpAgentContract,
     llm: openaiLLMCaller,
     mcp: mcpClient,
     contextBuilder: withDefaultContextBuilder(
@@ -53,11 +53,6 @@ export const zapierGoogleDocsMcpAgent: EventHandlerFactory<{
         coordinate the appropriate agents for this task."
       `),
     ),
-  });
-
-  return createAgent({
-    contract: zapierGoogleDocsMcpAgentContract,
-    engine,
     memory,
     services: {},
     humanReview: humanInteractionDomain

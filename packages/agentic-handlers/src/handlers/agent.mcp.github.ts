@@ -30,8 +30,8 @@ export const githubMcpAgent: EventHandlerFactory<{
     },
   }));
 
-  const engine = new AgentRunner({
-    name: githubMcpAgentContract.type,
+  return createAgent({
+    contract: githubMcpAgentContract,
     llm: anthropicLLMCaller,
     mcp: mcpClient,
     contextBuilder: withDefaultContextBuilder(`
@@ -46,11 +46,6 @@ export const githubMcpAgent: EventHandlerFactory<{
         If a request is outside your GitHub scope, politely decline.
       </system_instructions>
     `),
-  });
-
-  return createAgent({
-    contract: githubMcpAgentContract,
-    engine,
     memory,
     services: {},
   });

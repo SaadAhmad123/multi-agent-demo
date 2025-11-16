@@ -90,11 +90,11 @@ importers:
         specifier: workspace:*
         version: link:../../packages/agentic-handlers
       arvo-core:
-        specifier: ^3.0.16
-        version: 3.0.16
+        specifier: ^3.0.18
+        version: 3.0.18
       arvo-event-handler:
-        specifier: ^3.0.16
-        version: 3.0.16
+        specifier: ^3.0.18
+        version: 3.0.18
       chalk:
         specifier: ^5.6.2
         version: 5.6.2
@@ -148,11 +148,14 @@ importers:
         specifier: ^1.9.0
         version: 1.9.0
       arvo-core:
-        specifier: ^3.0.16
-        version: 3.0.16
+        specifier: ^3.0.18
+        version: 3.0.18
       arvo-event-handler:
-        specifier: ^3.0.16
-        version: 3.0.16
+        specifier: ^3.0.18
+        version: 3.0.18
+      dotenv:
+        specifier: ^17.2.3
+        version: 17.2.3
       liquidjs:
         specifier: ^10.24.0
         version: 10.24.0
@@ -166,13 +169,13 @@ importers:
         specifier: ^13.0.0
         version: 13.0.0
       xstate:
-        specifier: ^5.20.1
-        version: 5.22.1
+        specifier: ^5.23.0
+        version: 5.23.0
       zod:
-        specifier: ^3.25.67
+        specifier: ^3.25.76
         version: 3.25.76
       zod-to-json-schema:
-        specifier: ^3.24.5
+        specifier: ^3.24.6
         version: 3.24.6(zod@3.25.76)
     devDependencies:
       '@types/node':
@@ -1399,12 +1402,12 @@ packages:
   arg@4.1.3:
     resolution: {integrity: sha512-58S9QDqG0Xx27YwPSt9fJxivjYl432YCwfDMfZ+71RAqUrZef7LrKQZ3LHLOwCS4FLNBplP533Zx895SeOCHvA==}
 
-  arvo-core@3.0.16:
-    resolution: {integrity: sha512-6XX0dOBNe+xtB7q5JTtPyM4hy60Zt3TqnJVAQoOXPKd9/0BkgOi/nROsIkGtSr4oBxCY9J/mIhMj5+K57njXxw==}
+  arvo-core@3.0.18:
+    resolution: {integrity: sha512-floz+lsCTUBmiSin8BghSMNra8Kqg5JeGyQbv5f90r/QrxO/YZhE0MvvRlNcAt3qp8cXHfKx3MJVb7X52D9mFA==}
     engines: {node: '>=18.0.0'}
 
-  arvo-event-handler@3.0.16:
-    resolution: {integrity: sha512-RFe9Zd/y0Fd+i5BFng5J3k4xE731Tmolen2d8+ydCOqwccNlOH5Gy8JoDyaay5wRzDKY3d3CAwj1IG1UU4tI4w==}
+  arvo-event-handler@3.0.18:
+    resolution: {integrity: sha512-gEb5LB4Dmv4Zm6wzG3UQ402s732qrimuh2qAWIY8zt+MV2Pit0QR3nJmpLvVtLDhjN0IyqPb/T/b9cNm+yV0sg==}
     engines: {node: '>=18.0.0'}
 
   balanced-match@1.0.2:
@@ -3819,7 +3822,7 @@ snapshots:
 
   arg@4.1.3: {}
 
-  arvo-core@3.0.16:
+  arvo-core@3.0.18:
     dependencies:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/core': 1.30.1(@opentelemetry/api@1.9.0)
@@ -3828,11 +3831,11 @@ snapshots:
       zod: 3.25.76
       zod-to-json-schema: 3.24.6(zod@3.25.76)
 
-  arvo-event-handler@3.0.16:
+  arvo-event-handler@3.0.18:
     dependencies:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/core': 1.30.1(@opentelemetry/api@1.9.0)
-      arvo-core: 3.0.16
+      arvo-core: 3.0.18
       uuid: 11.1.0
       xstate: 5.23.0
       zod: 3.25.76

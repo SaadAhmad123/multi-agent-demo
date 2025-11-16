@@ -36,8 +36,8 @@ export const operatorAgent: EventHandlerFactory<{
   memory: IMachineMemory<Record<string, unknown>>;
   humanInteractionDomain?: NonEmptyArray<string>;
 }> = ({ memory, humanInteractionDomain }) => {
-  const engine = new AgentRunner({
-    name: operatorAgentContract.type,
+  return createAgent({
+    contract: operatorAgentContract,
     llm: openaiLLMCaller,
     maxToolInteractions: 100,
     contextBuilder: withDefaultContextBuilder(
@@ -74,11 +74,6 @@ export const operatorAgent: EventHandlerFactory<{
         deliver complete solutions without back-and-forth.
       `),
     ),
-  });
-
-  return createAgent({
-    contract: operatorAgentContract,
-    engine,
     memory,
     streamListener: async ({ type, data }) => {
       console.log(JSON.stringify({ type, data }, null, 2));

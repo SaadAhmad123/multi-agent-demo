@@ -21,8 +21,8 @@ export const zapierGmailAndWeatherMcpAgent: EventHandlerFactory<{
 }> = ({ memory }) => {
   const mcpClient = new MCPClient(() => ({ url: process.env.ZAPIER_MCP_INTEGRATION_URL_GMAIL_WEATHER || 'no url' }));
 
-  const engine = new AgentRunner({
-    name: zapierGmailAndWeatherMcpAgentContract.type,
+  return createAgent({
+    contract: zapierGmailAndWeatherMcpAgentContract,
     llm: openaiLLMCaller,
     mcp: mcpClient,
     contextBuilder: withDefaultContextBuilder(
@@ -58,11 +58,6 @@ export const zapierGmailAndWeatherMcpAgent: EventHandlerFactory<{
         specialization. Please ask @operator to coordinate the appropriate agents for this task."
       `),
     ),
-  });
-
-  return createAgent({
-    contract: zapierGmailAndWeatherMcpAgentContract,
-    engine,
     memory,
     services: {},
   });
