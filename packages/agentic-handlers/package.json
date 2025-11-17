@@ -13,7 +13,11 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsx watch src/index.ts",
-    "start": ""
+    "start": "",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "keywords": [],
   "author": "",
@@ -21,7 +25,10 @@
   "devDependencies": {
     "@types/node": "^24.6.2",
     "@types/pg": "^8.15.6",
-    "typescript": "5.9.2"
+    "typescript": "5.9.2",
+    "@vitest/coverage-v8": "^4.0.6",
+    "@vitest/ui": "^4.0.6",
+    "vitest": "^4.0.6"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.57.0",
