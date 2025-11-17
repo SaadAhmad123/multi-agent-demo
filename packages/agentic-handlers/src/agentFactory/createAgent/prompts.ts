@@ -188,7 +188,7 @@ Return ONLY the JSON object. The output will be parsed directly using Python's j
 {% endif %}
 
 # Tool Interaction Budget
-Current tool interactions: {{ toolInteractions.current }} / {{ toolInteractions.max }}
+Current tool interactions: {{ toolInteractionsCurrentOneIndexed }} / {{ toolInteractions.max }}
 
 {% if toolInteractionLimitReached %}
 **CRITICAL WARNING: You have reached your tool interaction limit!**
@@ -217,7 +217,8 @@ export const buildDefaultSystemPrompt = async (instructions: string | null, para
     instructions,
     delegatedByName: params.delegatedBy?.alias ?? params.delegatedBy?.source ?? null,
     outputFormatSchema: params.outputFormat ? JSON.stringify(zodToJsonSchema(params.outputFormat), null, 2) : null,
-    toolInteractionLimitReached: params.toolInteractions.current >= params.toolInteractions.max,
+    toolInteractionLimitReached: params.toolInteractions.current > params.toolInteractions.max,
+    toolInteractionsCurrentOneIndexed: params.toolInteractions.current + 1,
   });
 };
 

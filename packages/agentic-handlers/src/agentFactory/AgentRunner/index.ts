@@ -218,17 +218,17 @@ export class AgentRunner {
     let messages = param.messages;
 
     // Add some tool iteration buffer to handle issue.
-    const TOOL_INTERACTION_BUFFER = 2;
+    const TOOL_INTERACTION_BUFFER = 3;
     for (
       let toolInteractionCount = param.toolInteractions.current;
-      toolInteractionCount <= this.maxToolInteractions + TOOL_INTERACTION_BUFFER;
+      toolInteractionCount < this.maxToolInteractions + TOOL_INTERACTION_BUFFER;
       toolInteractionCount++
     ) {
-      const isToolBudgetExhausted = !(toolInteractionCount <= this.maxToolInteractions);
+      const isToolBudgetExhausted = !(toolInteractionCount < this.maxToolInteractions);
       logToSpan(
         {
           level: isToolBudgetExhausted ? 'WARNING' : 'INFO',
-          message: `Tool interaction budget (${toolInteractionCount}/${this.maxToolInteractions})`,
+          message: `Tool interaction budget (${toolInteractionCount + 1}/${this.maxToolInteractions})`,
         },
         otelInfo.span,
       );

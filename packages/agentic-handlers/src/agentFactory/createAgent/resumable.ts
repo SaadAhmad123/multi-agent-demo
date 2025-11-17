@@ -2,7 +2,7 @@ import {
   SemanticConventions as OpenInferenceSemanticConventions,
   OpenInferenceSpanKind,
 } from '@arizeai/openinference-semantic-conventions';
-import { type InferVersionedArvoContract, exceptionToSpan, getOtelHeaderFromSpan } from 'arvo-core';
+import { type InferVersionedArvoContract, cleanString, exceptionToSpan, getOtelHeaderFromSpan } from 'arvo-core';
 import { createArvoResumable } from 'arvo-event-handler';
 import { AgentRunner } from '../AgentRunner/index.js';
 import type {
@@ -24,6 +24,8 @@ import {
   resolveServiceToolDefinition,
   toolRequestsToServices,
 } from './utils.js';
+import type z from 'zod';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 
 // a ArvoOrchestratorContract under the hood.
 type ResolveSelfContractType<TContract extends AnyAgentContract> = ReturnType<
@@ -108,20 +110,52 @@ export const createAgent = <TContract extends AnyAgentContract>({
           type: toolFormatter.reverse(req.type) ?? req.type,
         });
 
+        const serviceAcceptTypeToSchemaMap: Record<string, z.AnyZodObject> = Object.fromEntries(
+          Object.values(contracts.services).map((item) => [item.accepts.type, item.accepts.schema]),
+        );
         const agentExternalToolCallValidator: NonNullable<AgentRunnerExecuteParam['externalToolValidator']> = (
           toolType,
           data,
           { exhausted },
         ) => {
           if (exhausted) return null;
-          return (
-            contracts.services[toolFormatter.reverse(toolType) ?? '']?.accepts?.schema?.safeParse?.(data)?.error ?? null
+          const error =
+            serviceAcceptTypeToSchemaMap[toolFormatter.reverse(toolType) ?? '']?.safeParse?.({
+              ...data,
+              parentSubject$$: 'placeholder_subject_for_validation',
+            })?.error ?? null;
+          if (!error) return null;
+          return new Error(
+            cleanString(`
+              Tool call validation failed. The provided arguments do not match the required schema.
+              
+              Error: ${error.message}
+              
+              Required schema: ${
+                // biome-ignore lint/style/noNonNullAssertion: This cannot be null
+                JSON.stringify(zodToJsonSchema(serviceAcceptTypeToSchemaMap[toolFormatter.reverse(toolType)!]!))
+              }
+              
+              Ensure all arguments data structure strictly conform to the schema specification above.
+            `),
           );
         };
 
         const agentOutputValidator: NonNullable<AgentRunnerExecuteParam['outputValidator']> = (data, { exhausted }) => {
           if (exhausted) return null;
-          return contracts.self.metadata.config.outputFormat?.safeParse(data).error ?? null;
+          const error = contracts.self.metadata.config.outputFormat?.safeParse(data).error ?? null;
+          if (!error) return null;
+          return new Error(
+            cleanString(`
+              Output data validation failed. The provided data structure do not match the required schema.
+              Error: ${error.message}
+              Required schema: ${
+                // biome-ignore lint/style/noNonNullAssertion: This cannot be null
+                JSON.stringify(zodToJsonSchema(contracts.self.metadata.config.outputFormat!))
+              }
+              Ensure output data structure strictly conform to the schema specification above.
+            `),
+          );
         };
 
         const toolDefinitions = {
