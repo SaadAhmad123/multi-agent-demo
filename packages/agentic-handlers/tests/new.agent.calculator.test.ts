@@ -7,7 +7,7 @@ import {
 import { beforeEach, describe, expect, test } from 'vitest';
 import { calculatorAgent, calculatorAgentContract } from '../src/handlers/NewAgents/agent.calculator.js';
 import { type ArvoEvent, createArvoEventFactory } from 'arvo-core';
-import { testImageBase64, testPdfBase64 } from './test_content.js';
+import {} from './test_content.js';
 import { calculatorHandler, humanReviewContract } from '../src/index.js';
 
 const TEST_EVENT_SOURCE = 'test.test.test';
@@ -33,10 +33,7 @@ const tests: ArvoTestSuite = {
             createArvoEventFactory(calculatorAgentContract.version('1.0.0')).accepts({
               source: TEST_EVENT_SOURCE,
               data: {
-                message:
-                  'What is the result of the content the file and the image both. Also how do I get started with Astro. Tell me all of this',
-                image: testImageBase64,
-                file: testPdfBase64,
+                message: 'What is the standard deviation of 1,.2,3,4,5,6,3214,453,324,324,2',
                 parentSubject$$: null,
               },
             }),

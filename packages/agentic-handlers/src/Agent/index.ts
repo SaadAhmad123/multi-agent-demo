@@ -43,8 +43,8 @@ export const createArvoAgent = <
   handler,
   llm,
   mcp,
-  maxToolInteractions,
-  llmResponseType,
+  maxToolInteractions = 5,
+  llmResponseType = 'text',
   tools,
 }: CreateArvoAgentParam<TSelfContract, TServiceContract, TTools>) => {
   const serviceContracts = Object.fromEntries(

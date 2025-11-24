@@ -16,7 +16,6 @@ import type {
   AgentToolResultContent,
 } from '../types.js';
 import type { ChatCompletionMessageFunctionToolCall } from 'openai/resources.js';
-import { v4 } from 'uuid';
 import { ArvoOpenTelemetry, cleanString } from 'arvo-core';
 import {
   setOpenInferenceInputAttr,
@@ -74,7 +73,7 @@ const formatMessagesForOpenAI = (
             {
               type: 'file',
               file: {
-                filename: `${v4()}`,
+                filename: message.content.contentType.filename,
                 file_data: message.content.content,
               },
             },

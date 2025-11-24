@@ -10,10 +10,14 @@ export const AgentMediaContentSchema = z.object({
   content: z.string(),
   contentType: z.discriminatedUnion('type', [
     z.object({
+      filename: z.string(),
+      filetype: z.string(),
       type: z.literal('image'),
       format: z.enum(['base64']),
     }),
     z.object({
+      filename: z.string(),
+      filetype: z.string(),
       type: z.literal('file'),
       format: z.enum(['base64']),
     }),

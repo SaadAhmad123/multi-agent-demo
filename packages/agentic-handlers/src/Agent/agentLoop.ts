@@ -33,7 +33,7 @@ export const agentLoop = async (
     tools: AgentToolDefinition[];
     outputFormat: z.ZodTypeAny;
     outputBuilder: AgentOutputBuilder;
-    llmResponseType: CreateArvoAgentParam['llmResponseType'];
+    llmResponseType: NonNullable<CreateArvoAgentParam['llmResponseType']>;
     llm: AgentLLMIntegration;
     mcp: IMCPClient | null;
     toolInteraction: {

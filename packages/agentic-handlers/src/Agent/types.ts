@@ -177,10 +177,10 @@ export type CreateArvoAgentParam<
     services: TServiceContract;
   };
   memory: IMachineMemory<Record<string, unknown>>;
-  maxToolInteractions: number;
+  maxToolInteractions?: number;
   mcp?: IMCPClient;
   tools?: TTools;
-  llmResponseType: AgentLLMIntegrationParam['outputFormat']['type'];
+  llmResponseType?: AgentLLMIntegrationParam['outputFormat']['type'];
   llm: AgentLLMIntegration;
   handler: {
     [K in keyof TSelfContract['versions'] & ArvoSemanticVersion]: {
