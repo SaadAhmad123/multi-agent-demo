@@ -27,17 +27,22 @@ export const createAgentTool = <TInputSchema extends z.ZodTypeAny, TOutputSchema
         },
         fn: async (span) => {
           try {
+            span.setAttribute(OpenInferenceSemanticConventions.TOOL_CALL_FUNCTION_NAME, param.name)
+            span.setAttribute(OpenInferenceSemanticConventions.TOOL_CALL_FUNCTION_ARGUMENTS_JSON, JSON.stringify(input))
+            span.setAttribute(OpenInferenceSemanticConventions.INPUT_VALUE, JSON.stringify(input))
             const inputValidation = param.input.safeParse(input);
             if (inputValidation.error)
               throw new Error(
                 `Invalid tool input data. Please send the correct data and its structure as per the input schema. ${inputValidation.error.toString()}`,
               );
-            return await param.fn(inputValidation.data, {
+            const result = await param.fn(inputValidation.data, {
               otelInfo: {
                 span,
                 headers: getOtelHeaderFromSpan(span),
               },
             });
+            span.setAttribute(OpenInferenceSemanticConventions.OUTPUT_VALUE, JSON.stringify(result))
+            return result
           } catch (err) {
             span.setStatus({ code: SpanStatusCode.ERROR, message: (err as Error)?.message });
             throw err;
