@@ -85,12 +85,12 @@ export const demoMachineV100 = setupArvoMachine({
                 },
               ],
             }),
-            target: 'error'
+            target: 'error',
           },
         ],
         'sys.com.human.approval.error': {
-          actions: xstate.assign({errors: ({context, event}) => [...context.errors, event.data]}),
-          target: 'error'
+          actions: xstate.assign({ errors: ({ context, event }) => [...context.errors, event.data] }),
+          target: 'error',
         },
       },
     },
