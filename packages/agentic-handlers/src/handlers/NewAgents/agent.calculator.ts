@@ -1,15 +1,12 @@
 import { cleanString, createArvoOrchestratorContract } from 'arvo-core';
-import { createArvoAgent } from '../../Agent/index.js';
-import { openaiLLMIntegration } from '../../Agent/integrations/openai.js';
 import type { EventHandlerFactory, IMachineMemory } from 'arvo-event-handler';
 import { calculatorContract } from '../calculator.handler.js';
-import { MCPClient } from '../../Agent/integrations/MCPClient.js';
 import { humanReviewContract } from '../../agentFactory/createAgent/index.js';
-import { AgentDefaults } from '../../Agent/AgentDefaults.js';
 import z from 'zod';
-import { createAgentTool } from '../../Agent/agentTool.js';
-import { AgentMessage } from '../../Agent/types.js';
-import { v4 } from 'uuid';
+import { createArvoAgent, createAgentTool, AgentDefaults, openaiLLMIntegration, MCPClient } from '@arvo-tools/agentic';
+import * as dotenv from 'dotenv';
+import { OpenAI } from 'openai/client.js';
+dotenv.config();
 
 const ALIAS = 'aleej';
 export const calculatorAgentContract = createArvoOrchestratorContract({
@@ -18,11 +15,7 @@ export const calculatorAgentContract = createArvoOrchestratorContract({
   description: 'This is a calculator agent',
   versions: {
     '1.0.0': {
-      init: z.object({
-        message: z.string(),
-        pdfBase64: z.string().array().optional(),
-        imageBase64: z.string().array().optional(),
-      }),
+      init: AgentDefaults.INIT_SCHEMA,
       complete: AgentDefaults.COMPLETE_SCHEMA,
     },
   },
@@ -62,14 +55,14 @@ export const calculatorAgent: EventHandlerFactory<{ memory: IMachineMemory<Recor
     mcp: new MCPClient({
       url: 'https://mcp.docs.astro.build/mcp',
     }),
-    llm: openaiLLMIntegration({ model: 'gpt-4o' }),
+    llm: openaiLLMIntegration(new OpenAI({ apiKey: process.env.OPENAI_API_KEY }), { model: 'gpt-4o' }),
     memory,
-    
+
     handler: {
       '1.0.0': {
         // Dynamic context building for the agent when it is initialised.
-        context: ({ input, tools }) => {
-          const system = cleanString(`
+        context: AgentDefaults.CONTEXT_BUILDER(({ tools }) =>
+          cleanString(`
             You are a calculator agent as well as a astro documentation search agent and you must calculate the expression to the best of your abilities.
             If a file is available to you then read it promptly and put all the relevant information from the file for your task in your note by calling tool ${tools.tools.selfTalk.name}.
             Putting the content of the files in tool ${tools.tools.selfTalk.name} is paramount because you can only see the file content once in your lifetime.
@@ -83,52 +76,8 @@ export const calculatorAgent: EventHandlerFactory<{ memory: IMachineMemory<Recor
 
             Tip: You can call tools ${tools.tools.selfTalk.name} and ${tools.services.humanReview.name} in
             parallel if you can.
-          `);
-
-          const messages: AgentMessage[] = [
-            {
-              role: 'user',
-              content: { type: 'text', content: input.data.message },
-            },
-          ];
-
-          for (const item of input.data.pdfBase64 ?? []) {
-            messages.push({
-              role: 'user',
-              content: {
-                type: 'media',
-                content: item,
-                contentType: {
-                  format: 'base64',
-                  type: 'file',
-                  filename: `${v4()}.pdf`,
-                  filetype: 'pdf',
-                },
-              },
-            });
-          }
-
-          for (const item of input.data.imageBase64 ?? []) {
-            messages.push({
-              role: 'user',
-              content: {
-                type: 'media',
-                content: item,
-                contentType: {
-                  format: 'base64',
-                  type: 'image',
-                  filename: `${v4()}.png`,
-                  filetype: 'png',
-                },
-              },
-            });
-          }
-
-          return {
-            messages,
-            system,
-          };
-        },
+          `),
+        ),
         output: AgentDefaults.OUTPUT_BUILDER,
       },
     },
