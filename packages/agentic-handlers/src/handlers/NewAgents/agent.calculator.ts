@@ -55,7 +55,9 @@ export const calculatorAgent: EventHandlerFactory<{ memory: IMachineMemory<Recor
     mcp: new MCPClient({
       url: 'https://mcp.docs.astro.build/mcp',
     }),
-    llm: openaiLLMIntegration(new OpenAI({ apiKey: process.env.OPENAI_API_KEY }), { model: 'gpt-4o' }),
+    llm: openaiLLMIntegration(new OpenAI({ apiKey: process.env.OPENAI_API_KEY }), {
+      invocationParam: { model: 'gpt-4o' },
+    }),
     memory,
 
     handler: {

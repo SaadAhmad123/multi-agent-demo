@@ -33,7 +33,8 @@ const tests: ArvoTestSuite = {
             createArvoEventFactory(calculatorAgentContract.version('1.0.0')).accepts({
               source: TEST_EVENT_SOURCE,
               data: {
-                message: 'What is the standard deviation of 1,.2,3,4,5,6,3214,453,324,324,2',
+                message:
+                  'What is the standard deviation of 1,.2,3,4,5,6,3214,453,324,324,2. Get human review of the plan before an. calculation',
                 parentSubject$$: null,
               },
             }),
