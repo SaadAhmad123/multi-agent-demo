@@ -1,6 +1,11 @@
 import { createArvoOrchestratorContract } from 'arvo-core';
 import type { EventHandlerFactory, IMachineMemory } from 'arvo-event-handler';
-import { AgentDefaults, createArvoAgent, OpenAI, openaiLLMIntegration } from '@arvo-tools/agentic';
+import {
+  AgentDefaults,
+  createArvoAgent,
+  OpenAI,
+  openaiLLMIntegration,
+} from '@arvo-tools/agentic';
 
 export const simpleAgentContract = createArvoOrchestratorContract({
   uri: '#/deno/amas/agent/simple',
@@ -14,14 +19,18 @@ export const simpleAgentContract = createArvoOrchestratorContract({
   },
 });
 
-export const simpleAgent: EventHandlerFactory<{ memory: IMachineMemory<Record<string, unknown>> }> = ({ memory }) =>
+export const simpleAgent: EventHandlerFactory<
+  { memory: IMachineMemory<Record<string, unknown>> }
+> = ({ memory }) =>
   createArvoAgent({
     contracts: {
       self: simpleAgentContract,
       services: {},
     },
     memory,
-    onStream: ({type, data}) => {console.log(JSON.stringify({type, data}, null, 2))},
+    onStream: ({ type, data }) => {
+      console.log(JSON.stringify({ type, data }, null, 2));
+    },
     llm: openaiLLMIntegration(
       new OpenAI.OpenAI({ apiKey: Deno.env.get('OPENAI_API_KEY') }),
       {
