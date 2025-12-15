@@ -50,7 +50,7 @@ export const weightedAverageResumable: EventHandlerFactory<
     },
     memory,
     executionunits: 0,
-    
+
     types: {
       context: {} as {
         currentSubject: string;
@@ -61,13 +61,13 @@ export const weightedAverageResumable: EventHandlerFactory<
         isWaitingAllProducts: boolean;
       },
     },
-    
+
     handler: {
       // deno-lint-ignore require-await
       '1.0.0': async ({
-        input, 
-        context, 
-        service, 
+        input,
+        context,
+        service,
         collectedEvents,
       }) => {
         if (input) {
@@ -119,9 +119,9 @@ export const weightedAverageResumable: EventHandlerFactory<
             context: {
               ...context,
               humanApproval: service.data.approval,
-              isWaitingAllProducts: true, 
+              isWaitingAllProducts: true,
             },
-            
+
             services: context.inputItems.map(({ value, weight }) => ({
               type: 'com.calculator.product' as const,
               data: {
@@ -138,7 +138,7 @@ export const weightedAverageResumable: EventHandlerFactory<
           ) {
             return;
           }
-          
+
           return {
             context: {
               ...context,

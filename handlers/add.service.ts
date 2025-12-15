@@ -29,7 +29,6 @@ export const addHandler: EventHandlerFactory = () =>
     contract: addContract,
     executionunits: 0,
     handler: {
-      // deno-lint-ignore require-await
       '1.0.0': async ({ event }) => {
         if (event.data.numbers.length === 0) {
           // This will result in 'sys.calculator.add.error' event

@@ -2,15 +2,36 @@ import { createArvoOrchestratorContract } from 'arvo-core';
 import type { EventHandlerFactory, IMachineMemory } from 'arvo-event-handler';
 import {
   AgentDefaults,
+  createAgentTool,
   createArvoAgent,
   OpenAI,
   openaiLLMIntegration,
 } from '@arvo-tools/agentic';
+import z from 'zod';
+import { cleanString } from 'arvo-core';
+import { MCPClient } from '@arvo-tools/agentic';
+import type {
+  AgentStreamListener,
+  IPermissionManager,
+} from '@arvo-tools/agentic';
+
+const currentDateTool = createAgentTool({
+  name: 'current_date_tool',
+  description: 'Provided the curret data and time as an ISO string',
+  input: z.object({}),
+  output: z.object({
+    response: z.string(),
+  }),
+  fn: () => ({
+    response: new Date().toISOString(),
+  }),
+});
 
 export const simpleAgentContract = createArvoOrchestratorContract({
-  uri: '#/deno/amas/agent/simple',
+  uri: '#/org/amas/agent/simple',
   name: 'agent.simple',
-  description: 'A simple AI agent which answers qu1estions',
+  description:
+    'This is simple AI agent which can tell you about the current time accurately and has access to Astro documentation',
   versions: {
     '1.0.0': {
       init: AgentDefaults.INIT_SCHEMA,
@@ -20,28 +41,47 @@ export const simpleAgentContract = createArvoOrchestratorContract({
 });
 
 export const simpleAgent: EventHandlerFactory<
-  { memory: IMachineMemory<Record<string, unknown>> }
-> = ({ memory }) =>
+  {
+    memory: IMachineMemory<Record<string, unknown>>;
+    permissionManager?: IPermissionManager;
+    onStream?: AgentStreamListener;
+  }
+> = ({ memory, permissionManager, onStream }) =>
   createArvoAgent({
     contracts: {
       self: simpleAgentContract,
       services: {},
     },
-    memory,
-    onStream: ({ type, data }) => {
-      console.log(JSON.stringify({ type, data }, null, 2));
+    tools: {
+      currentDateTool,
     },
+    memory,
+    mcp: new MCPClient(() => ({
+      url: 'https://mcp.docs.astro.build/mcp',
+      requestInit: {
+        headers: {},
+      },
+    })),
+    maxToolInteractions: 10,
+    onStream,
     llm: openaiLLMIntegration(
       new OpenAI.OpenAI({ apiKey: Deno.env.get('OPENAI_API_KEY') }),
-      {
-        invocationParam: {
-          stream: true,
-        },
-      },
     ),
+    permissionManager,
     handler: {
       '1.0.0': {
-        context: AgentDefaults.CONTEXT_BUILDER(() => 'You are a helpful agent'),
+        // The tools object here provide the safe mechanism to
+        // access the service name as well. Just like other tool.
+        explicityPermissionRequired: (tools) => [
+          tools.mcp.search_astro_docs.name,
+        ],
+        context: AgentDefaults.CONTEXT_BUILDER(({ tools }) =>
+          cleanString(`
+            You are a helpful agent. For queries about the current date, 
+            use ${tools.tools.currentDateTool.name}.
+            For information about Astro, use ${tools.mcp.search_astro_docs.name}.
+          `)
+        ),
         output: AgentDefaults.OUTPUT_BUILDER,
       },
     },

@@ -92,8 +92,8 @@ const resumableIntegrationTest: ArvoTestSuite = {
               weightedAverageContract.metadata.completeEventType,
             );
             const expectedAvg = TEST_INPUT.reduce(
-              (acc, [value, weight]) => acc + (value * weight), 
-              0
+              (acc, [value, weight]) => acc + (value * weight),
+              0,
             ) / TEST_INPUT.length;
             expect(evt.data.output.toFixed(1)).toBe(expectedAvg.toFixed(1));
             return true;
