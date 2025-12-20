@@ -5,7 +5,6 @@ import {
   createSimpleEventBroker,
   SimpleMachineMemory,
 } from 'arvo-event-handler';
-import { cleanString } from 'arvo-core';
 import {
   type AgentStreamListener,
   SimplePermissionManager,
@@ -21,11 +20,13 @@ import {
 } from '@opentelemetry/api';
 import { calculatorHandler } from './handlers/calculator.service.ts';
 import { calculatorAgent } from './handlers/calculator.agent.ts';
-import {
-  operatorAgent,
-  operatorAgentContract,
-} from './handlers/operator.agent.ts';
+import { operatorAgent, operatorAgentContract } from './handlers/operator.agent.ts';
 import { humanConversationContract } from './handlers/human.conversation.contract.ts';
+import { essayOutlineAgent } from './handlers/essay-outline.agent.ts';
+import { essayWriterAgent } from './handlers/essay-writer.agent.ts';
+import { essayBuilderWorkflow } from './handlers/essay.builder.workflow/index.ts';
+import { humanApprovalContract } from './handlers/human.approval.contract.ts';
+import { cleanString } from 'arvo-core';
 const TEST_EVENT_SOURCE = 'test.test.test';
 
 const tracer = trace.getTracer('main-agent-tracer');
@@ -128,6 +129,46 @@ async function handleHumanConversation(event: ArvoEvent): Promise<ArvoEvent> {
   );
 }
 
+async function handleHumanApproval(event: ArvoEvent): Promise<ArvoEvent> {
+  return await tracer.startActiveSpan(
+    'HumanConversation.Approval',
+    {
+      kind: SpanKind.INTERNAL,
+    },
+    createOtelContextFromEvent(event),
+    async (span): Promise<ArvoEvent> => {
+      try {
+        console.log('==== Agent Initiated Plan Approval ====');
+
+        const userResponse = await confirm({
+          message: event.data?.prompt ?? 'Agent is requesting approval',
+        });
+
+        span.setStatus({ code: SpanStatusCode.OK });
+        return createArvoEventFactory(
+          humanApprovalContract.version('1.0.0'),
+        ).emits({
+          subject: event.data?.parentSubject$$ ?? event.subject ?? undefined,
+          parentid: event.id ?? undefined,
+          to: event.source ?? undefined,
+          accesscontrol: event.accesscontrol ?? undefined,
+          source: TEST_EVENT_SOURCE,
+          type: 'evt.human.approval.success',
+          data: {
+            approval: userResponse,
+          },
+        });
+      } catch (e) {
+        span.setStatus({ code: SpanStatusCode.ERROR });
+        span.recordException(e as Error);
+        throw e;
+      } finally {
+        span.end();
+      }
+    },
+  );
+}
+
 const memory = new SimpleMachineMemory();
 const permissionManager = new SimplePermissionManager({
   domains: ['human.interaction'],
@@ -135,6 +176,20 @@ const permissionManager = new SimplePermissionManager({
 
 // Capturing agent stream as dependency injection as well.
 const onStream: AgentStreamListener = ({ type, data }, metadata) => {
+  if (type === 'agent.init') {
+    console.log('==== [Agent Stream] Agent Initiated ====');
+    console.log(
+      JSON.stringify({ type, sourceAgent: metadata.selfId, data }, null, 2),
+    );
+    return;
+  }
+  if (type === 'agent.output') {
+    console.log('==== [Agent Stream] Agent Finalised Output ====');
+    console.log(
+      JSON.stringify({ type, sourceAgent: metadata.selfId, data }, null, 2),
+    );
+    return;
+  }
   if (type === 'agent.tool.request') {
     console.log('==== [Agent Stream] Tool call requested by Agent ====');
     console.log(
@@ -157,9 +212,13 @@ export const executeHandlers = async (
   const domainedEvents: ArvoEvent[] = [];
   const response = await createSimpleEventBroker([
     simpleAgent({ memory, permissionManager, onStream }),
-    calculatorAgent({ memory, onStream }), // Added calculator agent
-    operatorAgent({ memory, onStream }), // Added operator agent
+    calculatorAgent({ memory, onStream }),
+    operatorAgent({ memory, onStream }),
     calculatorHandler(),
+    // Add the new handlers into the event-fabric
+    essayOutlineAgent({ onStream }),
+    essayWriterAgent({ onStream }),
+    essayBuilderWorkflow({ memory }),
   ], {
     onDomainedEvents: async ({ event }) => {
       domainedEvents.push(event);
@@ -185,6 +244,8 @@ async function main() {
                 - Can you solve for x in 3x + 3x^2 + 45 = 100
                 - Can tell me about Astro (at a high level in 2-4 sentences)
                 - Can you tell me what day it was yesterday
+                - Write an essay on "State of Agentic Systems - A high-level overview"
+                  The essay must have only 5 headings and each heading must have only one paragraph.
 
                 Also in your response exactly tell me what tool did you use. And the strategy you 
                 employed.
@@ -211,13 +272,24 @@ async function main() {
         }
 
         const humanConversationEventIndex = events.findIndex(
-          (item) => item.type === humanConversationContract.type, // The type stays the same across version
+          (item) => item.type === humanConversationContract.type,
         );
         if (humanConversationEventIndex !== -1) {
           eventToProcess = await handleHumanConversation(
             events[humanConversationEventIndex],
           );
           events.splice(humanConversationEventIndex, 1);
+          continue;
+        }
+
+        const humanApprovalEventIndex = events.findIndex(
+          (item) => item.type === humanApprovalContract.type,
+        );
+        if (humanApprovalEventIndex !== -1) {
+          eventToProcess = await handleHumanApproval(
+            events[humanApprovalEventIndex],
+          );
+          events.splice(humanApprovalEventIndex, 1);
           continue;
         }
 
@@ -238,8 +310,37 @@ if (import.meta.main) {
 
 /*
 
-Console Log
+Console log
 
+==== [Agent Stream] Agent Initiated ====
+{
+  "type": "agent.init",
+  "sourceAgent": "arvo.orc.agent.operator",
+  "data": {
+    "system": "You a a helpful agent whose job is to respond to the user's\nrequest as accurately as possible. You must use the available tools\nand agent to you, when it makes sense, to get the most accurate answer.\n**Critical tool/agent use direction:** If you determine that a request needs\nmultiple tool/agent calls and they can be made in parallel then always do parallel\ntool calls. You are banned from performing sequential tool calls when they can\nbe parallelized",
+    "messages": [
+      {
+        "role": "user",
+        "content": {
+          "type": "text",
+          "content": "Can you answer my following queries as accurately as possible:\n- Can you solve for x in 3x + 3x^2 + 45 = 100\n- Can tell me about Astro (at a high level in 2-4 sentences)\n- Can you tell me what day it was yesterday\n- Write an essay on \"State of Agentic Systems - A high-level overview\"\nThe essay must have only 5 headings and each heading must have only one paragraph.\nAlso in your response exactly tell me what tool did you use. And the strategy you\nemployed."
+        },
+        "seenCount": 0
+      }
+    ],
+    "tools": [
+      "service_arvo_orc_agent_simple",
+      "service_arvo_orc_agent_calculator",
+      "service_arvo_orc_workflow_essay_builder"
+    ],
+    "llmResponseType": "text",
+    "toolIteractionCycle": {
+      "max": 100,
+      "current": 0,
+      "exhausted": false
+    }
+  }
+}
 ==== [Agent Stream] Tool call requested by Agent ====
 {
   "type": "agent.tool.request",
@@ -251,10 +352,10 @@ Console Log
       "originalName": "arvo.orc.agent.calculator"
     },
     "usage": {
-      "prompt": 741,
-      "completion": 232
+      "prompt": 911,
+      "completion": 318
     },
-    "executionunits": 973
+    "executionunits": 1229
   }
 }
 ==== [Agent Stream] Tool call requested by Agent ====
@@ -268,10 +369,10 @@ Console Log
       "originalName": "arvo.orc.agent.simple"
     },
     "usage": {
-      "prompt": 741,
-      "completion": 232
+      "prompt": 911,
+      "completion": 318
     },
-    "executionunits": 973
+    "executionunits": 1229
   }
 }
 ==== [Agent Stream] Tool call requested by Agent ====
@@ -285,10 +386,80 @@ Console Log
       "originalName": "arvo.orc.agent.simple"
     },
     "usage": {
-      "prompt": 741,
-      "completion": 232
+      "prompt": 911,
+      "completion": 318
     },
-    "executionunits": 973
+    "executionunits": 1229
+  }
+}
+==== [Agent Stream] Tool call requested by Agent ====
+{
+  "type": "agent.tool.request",
+  "sourceAgent": "arvo.orc.agent.operator",
+  "data": {
+    "tool": {
+      "name": "service_arvo_orc_workflow_essay_builder",
+      "kind": "arvo",
+      "originalName": "arvo.orc.workflow.essay.builder"
+    },
+    "usage": {
+      "prompt": 911,
+      "completion": 318
+    },
+    "executionunits": 1229
+  }
+}
+==== [Agent Stream] Agent Initiated ====
+{
+  "type": "agent.init",
+  "sourceAgent": "arvo.orc.agent.essay.outline",
+  "data": {
+    "system": "Generate exactly 5 essay headings for the given topic. First heading\nis Introduction. Last heading is Conclusion. Middle 3 headings are main\ntopics. Use Roman numerals (I-V). No subsections. Just 5 headings only.",
+    "messages": [
+      {
+        "role": "user",
+        "content": {
+          "type": "text",
+          "content": "Generate an essay outline for the following topic:\n\"State of Agentic Systems - A high-level overview\"\nAdditional Instructions:\nThe essay must have only 5 headings and each heading must have only one paragraph."
+        },
+        "seenCount": 0
+      }
+    ],
+    "tools": [],
+    "llmResponseType": "text",
+    "toolIteractionCycle": {
+      "max": 5,
+      "current": 0,
+      "exhausted": false
+    }
+  }
+}
+==== [Agent Stream] Agent Initiated ====
+{
+  "type": "agent.init",
+  "sourceAgent": "arvo.orc.agent.simple",
+  "data": {
+    "system": "You are a helpful agent. For queries about the current date,\nuse internal_current_date_tool.\nFor information about Astro, use mcp_search_astro_docs.",
+    "messages": [
+      {
+        "role": "user",
+        "content": {
+          "type": "text",
+          "content": "What day was it yesterday?"
+        },
+        "seenCount": 0
+      }
+    ],
+    "tools": [
+      "mcp_search_astro_docs",
+      "internal_current_date_tool"
+    ],
+    "llmResponseType": "text",
+    "toolIteractionCycle": {
+      "max": 10,
+      "current": 0,
+      "exhausted": false
+    }
   }
 }
 ==== [Agent Stream] Tool call requested by Agent ====
@@ -306,6 +477,35 @@ Console Log
       "completion": 12
     },
     "executionunits": 124
+  }
+}
+
+==== [Agent Stream] Agent Initiated ====
+{
+  "type": "agent.init",
+  "sourceAgent": "arvo.orc.agent.simple",
+  "data": {
+    "system": "You are a helpful agent. For queries about the current date,\nuse internal_current_date_tool.\nFor information about Astro, use mcp_search_astro_docs.",
+    "messages": [
+      {
+        "role": "user",
+        "content": {
+          "type": "text",
+          "content": "Can you tell me about Astro at a high level in 2-4 sentences?"
+        },
+        "seenCount": 0
+      }
+    ],
+    "tools": [
+      "mcp_search_astro_docs",
+      "internal_current_date_tool"
+    ],
+    "llmResponseType": "text",
+    "toolIteractionCycle": {
+      "max": 10,
+      "current": 0,
+      "exhausted": false
+    }
   }
 }
 ==== [Agent Stream] Tool call requested by Agent ====
@@ -344,6 +544,34 @@ Console Log
     "executionunits": 144
   }
 }
+==== [Agent Stream] Agent Initiated ====
+{
+  "type": "agent.init",
+  "sourceAgent": "arvo.orc.agent.calculator",
+  "data": {
+    "system": "You are strictly a calculation agent. Your sole purpose is to understand user requests\nand use the service_com_calculator_execute to perform calculations\nand respond with results. If the user request is not related to calculation, or you find\nthat your tool cannot perform the calculation due to tool limitations,\nthen respond with a null output and in remarks explain to the user why you were\nnot able to address the request.\nFor complex queries that you believe are solvable, you can break down the\nquery into smaller calculations which your tool can perform and use the tool to\nsolve each part.\n**Human approval workflow:** Before executing any calculation tool calls, you must first\nuse the service_com_human_conversation to present your execution plan to the\nhuman user. Clearly describe what calculations you intend to perform and how you will\nsolve their request. Wait for the human to explicitly approve your plan before proceeding\nwith the service_com_calculator_execute. If the human asks questions or requests\nclarification about your plan, continue using the service_com_human_conversation\nto address their questions until they explicitly approve. Only execute the calculation tools\nafter receiving clear approval from the human.\n**Critical tool use direction:** If you determine that a request needs\nmultiple tool calls and they can be made in parallel, then always execute parallel\ntool calls. You are banned from performing sequential tool calls when they can\nbe parallelized.",
+    "messages": [
+      {
+        "role": "user",
+        "content": {
+          "type": "text",
+          "content": "Solve for x in the equation: 3x + 3x^2 + 45 = 100"
+        },
+        "seenCount": 0
+      }
+    ],
+    "tools": [
+      "service_com_calculator_execute",
+      "service_com_human_conversation"
+    ],
+    "llmResponseType": "json",
+    "toolIteractionCycle": {
+      "max": 5,
+      "current": 0,
+      "exhausted": false
+    }
+  }
+}
 ==== [Agent Stream] Tool call requested by Agent ====
 {
   "type": "agent.tool.request",
@@ -355,101 +583,54 @@ Console Log
       "originalName": "com.human.conversation"
     },
     "usage": {
-      "prompt": 1783,
-      "completion": 314
+      "prompt": 1782,
+      "completion": 332
     },
-    "executionunits": 2097
+    "executionunits": 2114
   }
 }
 ==== Agent Requesting Tool Use Permission ====
-✔ Agent arvo.orc.agent.simple is requesting permission to execute following tools No
+✔ Agent arvo.orc.agent.simple is requesting permission to execute following tools Yes
+==== [Agent Stream] Tool call requested by Agent ====
+{
+  "type": "agent.tool.request",
+  "sourceAgent": "arvo.orc.agent.simple",
+  "data": {
+    "tool": {
+      "name": "mcp_search_astro_docs",
+      "kind": "mcp",
+      "originalName": "search_astro_docs"
+    },
+    "usage": {
+      "prompt": 420,
+      "completion": 42
+    },
+    "executionunits": 462
+  }
+}
+
 ==== Agent Initiated Conversation ====
 ✔ I need to solve the quadratic equation 3x + 3x² + 45 = 100 for x. Here's my execution plan:
 
-1. First, I'll rearrange the equation to standard form: 3x² + 3x + 45 - 100 = 0, which simplifies to 3x² + 3x - 55 = 0
+1. First, I'll rearrange the equation to standard form by subtracting 100 from both sides:
+   3x² + 3x + 45 - 100 = 0
+   3x² + 3x - 55 = 0
 
-2. I'll use the quadratic formula: x = (-b ± √(b² - 4ac)) / (2a), where a = 3, b = 3, c = -55
+2. I'll use the quadratic formula: x = (-b ± √(b² - 4ac)) / (2a)
+   Where a = 3, b = 3, c = -55
 
 3. I'll calculate the discriminant: b² - 4ac = 3² - 4(3)(-55) = 9 + 660 = 669
 
-4. Then calculate the two solutions:
-   - x₁ = (-3 + √669) / 6
-   - x₂ = (-3 - √669) / 6
+4. Then calculate both solutions:
+   x₁ = (-3 + √669) / 6
+   x₂ = (-3 - √669) / 6
 
-5. I'll use the calculator to compute √669 and then the final values for both solutions.
+I'll use the calculator to compute:
+- The discriminant: 9 + 660
+- The square root of 669
+- Both final solutions
 
-Does this approach look correct to you? Should I proceed with these calculations? why this way?
-==== [Agent Stream] Tool call requested by Agent ====
-{
-  "type": "agent.tool.request",
-  "sourceAgent": "arvo.orc.agent.calculator",
-  "data": {
-    "tool": {
-      "name": "service_com_human_conversation",
-      "kind": "arvo",
-      "originalName": "com.human.conversation"
-    },
-    "usage": {
-      "prompt": 3899,
-      "completion": 623
-    },
-    "executionunits": 4522
-  }
-}
-==== Agent Initiated Conversation ====
-✔ Good question! I'm using the quadratic formula because this is a quadratic equation (it has an x² term). Let me explain why this is the most reliable approach:
-
-The equation 3x + 3x² + 45 = 100 is a quadratic equation because of the x² term. When rearranged to standard form (ax² + bx + c = 0), it becomes 3x² + 3x - 55 = 0.
-
-For quadratic equations, we have a few options:
-1. **Quadratic formula** - Always works for any quadratic equation
-2. **Factoring** - Only works if the equation factors nicely (which this one doesn't appear to)
-3. **Completing the square** - Works but is more complex for this particular equation
-
-The quadratic formula is the most systematic and reliable method here. It will give us the exact solutions.
-
-Would you prefer I try a different approach, or shall I proceed with the quadratic formula method I outlined? in quadratic way how many tool calls will be done show me all of them
-==== [Agent Stream] Tool call requested by Agent ====
-{
-  "type": "agent.tool.request",
-  "sourceAgent": "arvo.orc.agent.calculator",
-  "data": {
-    "tool": {
-      "name": "service_com_human_conversation",
-      "kind": "arvo",
-      "originalName": "com.human.conversation"
-    },
-    "usage": {
-      "prompt": 6327,
-      "completion": 966
-    },
-    "executionunits": 7293
-  }
-}
-==== Agent Initiated Conversation ====
-✔ Great question! Let me break down all the calculator tool calls I'll need for the quadratic formula approach:
-
-**Tool Call 1:** Calculate the discriminant
-- Expression: "3**2 - 4*3*(-55)"
-- This gives us b² - 4ac = 9 + 660 = 669
-
-**Tool Call 2:** Calculate √669
-- Expression: "sqrt(669)"
-- This gives us the square root of the discriminant
-
-**Tool Call 3:** Calculate the first solution x₁
-- Expression: "(-3 + sqrt(669)) / (2*3)"
-- This is (-b + √discriminant) / (2a)
-
-**Tool Call 4:** Calculate the second solution x₂
-- Expression: "(-3 - sqrt(669)) / (2*3)"
-- This is (-b - √discriminant) / (2a)
-
-**Total: 4 tool calls**
-
-Since some of these calculations are independent (like calculating √669 separately), I can potentially run some in parallel to be more efficient.
-
-Would you like me to proceed with this plan, or would you prefer to see a different approach? do it
+Does this approach look correct to you? Should I proceed with these calculations? do it
 ==== [Agent Stream] Tool call requested by Agent ====
 {
   "type": "agent.tool.request",
@@ -461,10 +642,10 @@ Would you like me to proceed with this plan, or would you prefer to see a differ
       "originalName": "com.calculator.execute"
     },
     "usage": {
-      "prompt": 9092,
-      "completion": 1209
+      "prompt": 3914,
+      "completion": 566
     },
-    "executionunits": 10301
+    "executionunits": 4480
   }
 }
 ==== [Agent Stream] Tool call requested by Agent ====
@@ -478,10 +659,10 @@ Would you like me to proceed with this plan, or would you prefer to see a differ
       "originalName": "com.calculator.execute"
     },
     "usage": {
-      "prompt": 9092,
-      "completion": 1209
+      "prompt": 3914,
+      "completion": 566
     },
-    "executionunits": 10301
+    "executionunits": 4480
   }
 }
 ==== [Agent Stream] Tool call requested by Agent ====
@@ -495,10 +676,10 @@ Would you like me to proceed with this plan, or would you prefer to see a differ
       "originalName": "com.calculator.execute"
     },
     "usage": {
-      "prompt": 9092,
-      "completion": 1209
+      "prompt": 3914,
+      "completion": 566
     },
-    "executionunits": 10301
+    "executionunits": 4480
   }
 }
 ==== [Agent Stream] Tool call requested by Agent ====
@@ -512,32 +693,67 @@ Would you like me to proceed with this plan, or would you prefer to see a differ
       "originalName": "com.calculator.execute"
     },
     "usage": {
-      "prompt": 9092,
-      "completion": 1209
+      "prompt": 3914,
+      "completion": 566
     },
-    "executionunits": 10301
+    "executionunits": 4480
   }
 }
+
+==== Agent Initiated Plan Approval ====
+✔ For the topic "State of Agentic Systems - A high-level overview" following is the proposed outline:
+I. Introduction
+II. Overview of Agentic Systems
+III. Current Applications and Innovations
+IV. Challenges and Ethical Considerations
+V. Conclusion
+Please review this and provide your approval Yes
+==== [Agent Stream] Agent Initiated ====
+{
+  "type": "agent.init",
+  "sourceAgent": "arvo.orc.agent.essay.writer",
+  "data": {
+    "system": "Write a complete essay on the given topic.\nFollow exaclty the provided outline and write exactly one paragraph\nunder each heading. Each paragraph should be 4-6 sentences.\nFormat with headings in bold.",
+    "messages": [
+      {
+        "role": "user",
+        "content": {
+          "type": "text",
+          "content": "Can you write an essay for the topic \"State of Agentic Systems - A high-level overview\"\nYou must follow this outline exactly:\nI. Introduction\nII. Overview of Agentic Systems\nIII. Current Applications and Innovations\nIV. Challenges and Ethical Considerations\nV. Conclusion\nAdditional instructions:\nThe essay must have only 5 headings and each heading must have only one paragraph."
+        },
+        "seenCount": 0
+      }
+    ],
+    "tools": [],
+    "llmResponseType": "text",
+    "toolIteractionCycle": {
+      "max": 5,
+      "current": 0,
+      "exhausted": false
+    }
+  }
+}
+
 ==== Agent final output ====
 {
-  "id": "7efc16cb-7fe6-436e-a772-baaaaeb80630",
+  "id": "a45fc2b5-70c7-458f-b522-e5c4f9182778",
   "source": "arvo.orc.agent.operator",
   "specversion": "1.0",
   "type": "arvo.orc.agent.operator.done",
-  "subject": "eJw9jtEKgzAMRf8lz7a0Tjvn38Q2bgXbjhplIP77woS95OGey7k5oFT/opUrcqkwHpAxEYyAdS9amMYnZdblTVejgZ3qGkuWjtVGGzgboA/5jX/hATEIotk553ur7DAE1bX+oaYZb6pzw70NfWfayYgr5sjxWgaWL/T/CAwlYRRl3pZFRhIxiv88v+sOOnU=",
+  "subject": "eJw9jtEKgzAMRf8lz7Z0Olnn36Q13Qq2HTWKIP33hQl7ycM9l3NzQqn+TStX5FJhOiFjIpgA6160MI0vyqzLh65GBzvVNZYsnZs22kDrgA7yG//CE+IsyAcc6EFB9UijuluLypkhqNE8exNsoOCcuGKOHK9lYPlC/4/AuSSMoszbsshIIkbxt/YFSQQ7xA==",
   "datacontenttype": "application/cloudevents+json;charset=UTF-8;profile=arvo",
   "dataschema": "#/org/amas/agent/operator/1.0.0",
   "data": {
-    "response": "## Answers to your queries:\n\n1. **Solving 3x + 3x² + 45 = 100:**\n   The equation has two solutions: x ≈ 3.811 or x ≈ -4.811. The calculator agent rearranged it to standard form (3x² + 3x - 55 = 0) and used the quadratic formula to find both solutions.\n\n2. **About Astro:**\n   Astro is a modern web framework designed for building fast, content-focused websites. It emphasizes performance by delivering only the necessary JavaScript to the browser, and it supports a wide range of UI frameworks like React, Vue, and Svelte. Astro is particularly well-suited for static site generation and offers a component-based architecture.\n\n3. **Yesterday's day:**\n   Yesterday was December 14, 2025, which was a Sunday.\n\n## Tools Used and Strategy:\n\n**Tools Used:**\n- \`service_arvo_orc_agent_calculator\` for the mathematical equation\n- \`service_arvo_orc_agent_simple\` for both the Astro information and the date question\n\n**Strategy Employed:**\nI used a **parallel execution strategy** since all three queries were independent and could be processed simultaneously. I made all three tool calls at once rather than sequentially, which is more efficient and follows the directive to parallelize when possible. Each query was routed to the most appropriate agent - the calculator agent for the mathematical problem and the simple agent for the informational queries about Astro and the date."
+    "response": "## Answers to Your Queries:\n\n### 1. Solving 3x + 3x² + 45 = 100\nThe equation has two solutions:\n- x₁ ≈ 3.811\n- x₂ ≈ -4.811\n\nThe calculator agent rearranged the equation to standard form (3x² + 3x - 55 = 0) and used the quadratic formula to find these solutions.\n\n### 2. About Astro\nAstro is a modern web framework designed to optimize the performance of websites by delivering only the necessary JavaScript to the client. It allows developers to build fast, content-focused websites using a component-based architecture. Astro supports multiple front-end frameworks, enabling developers to use their preferred tools and libraries. It emphasizes server-side rendering and static site generation, making it ideal for building high-performance, SEO-friendly websites.\n\n### 3. Yesterday's Date\nYesterday was December 16, 2025, which was a Tuesday.\n\n### 4. Essay on \"State of Agentic Systems - A high-level overview\"\n\n**I. Introduction**\n\nAgentic systems, a subset of artificial intelligence, have become a focal point in the technological landscape due to their ability to perform tasks autonomously. These systems are designed to perceive their environment, make decisions, and execute actions without human intervention. As the world becomes increasingly digital, the demand for such systems is growing, driven by the need for efficiency and the ability to handle complex tasks. This essay provides a high-level overview of agentic systems, exploring their current applications, innovations, challenges, and ethical considerations.\n\n**II. Overview of Agentic Systems**\n\nAgentic systems are characterized by their autonomy, adaptability, and ability to learn from their environment. They are built on algorithms that enable them to process data, recognize patterns, and make decisions based on predefined goals. These systems can range from simple rule-based agents to complex machine learning models that evolve over time. The core components of agentic systems include sensors for data collection, processors for decision-making, and actuators for executing actions. As technology advances, these systems are becoming more sophisticated, capable of handling a wide range of tasks across various domains.\n\n**III. Current Applications and Innovations**\n\nAgentic systems are being deployed across numerous industries, revolutionizing the way tasks are performed. In the automotive industry, autonomous vehicles are a prime example, using agentic systems to navigate roads and make real-time decisions. In healthcare, these systems assist in diagnostics and patient monitoring, improving accuracy and efficiency. The financial sector utilizes agentic systems for algorithmic trading, risk management, and fraud detection. Innovations continue to emerge, such as smart home devices that learn user preferences and industrial robots that optimize manufacturing processes. These applications highlight the transformative potential of agentic systems in enhancing productivity and innovation.\n\n**IV. Challenges and Ethical Considerations**\n\nDespite their potential, agentic systems pose significant challenges and ethical concerns. One major issue is the reliability and safety of these systems, particularly in critical applications like healthcare and transportation. Ensuring that agentic systems make decisions that align with human values and ethics is another challenge, as biases in data can lead to unintended consequences. Privacy concerns also arise, as these systems often require access to vast amounts of personal data. Additionally, the potential for job displacement due to automation raises socio-economic concerns. Addressing these challenges requires robust regulatory frameworks and ongoing dialogue between technologists, policymakers, and society.\n\n**V. Conclusion**\n\nThe state of agentic systems reflects both the remarkable advancements in technology and the complex challenges that accompany them. As these systems become more integrated into daily life, their impact on industries and society will continue to grow. While they offer significant benefits in terms of efficiency and innovation, it is crucial to address the ethical and practical challenges they present. By fostering responsible development and deployment, agentic systems can be harnessed to improve quality of life while minimizing risks. The future of agentic systems will depend on our ability to balance technological progress with ethical considerations and societal needs.\n\n## Tools Used and Strategy:\n\n**Tools Used:**\n1. **service_arvo_orc_agent_calculator** - For solving the quadratic equation\n2. **service_arvo_orc_agent_simple** - For Astro information and yesterday's date (2 calls)\n3. **service_arvo_orc_workflow_essay_builder** - For generating the essay\n\n**Strategy Employed:**\nI used a **parallel execution strategy** for maximum efficiency. Since all four queries were independent of each other, I made all four tool calls simultaneously rather than sequentially. This approach minimized response time and followed the critical direction to parallelize tool calls whenever possible. Each tool was specifically chosen based on its capabilities:\n- Calculator agent for mathematical problem solving\n- Simple agent for factual information queries (Astro and date)\n- Essay builder workflow for structured content creation with specific formatting requirements"
   },
-  "time": "2025-12-16T00:32:41.890+00:00",
+  "time": "2025-12-17T17:22:20.563+00:00",
   "to": "test.test.test",
   "accesscontrol": null,
   "redirectto": "arvo.orc.agent.operator",
-  "executionunits": 2608,
-  "traceparent": "00-033a331168a70644cdfd2290cf224d60-1a4e299fcce4fec8-01",
+  "executionunits": 4582,
+  "traceparent": "00-0079dd47661289932655ca01a6eca6e6-1c38711f35b765ce-01",
   "tracestate": null,
-  "parentid": "ea92c23b-88d0-4a45-99c6-d3098afa156a",
+  "parentid": "4289aba7-9772-4d9f-a97a-2f2d70363d19",
   "domain": null
 }
 

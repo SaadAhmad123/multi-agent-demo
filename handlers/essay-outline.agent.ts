@@ -1,7 +1,8 @@
 import { createArvoOrchestratorContract } from 'arvo-core';
-import type { EventHandlerFactory, IMachineMemory } from 'arvo-event-handler';
+import type { EventHandlerFactory } from 'arvo-event-handler';
 import {
   AgentDefaults,
+  AgentStreamListener,
   createArvoAgent,
   OpenAI,
   openaiLLMIntegration,
@@ -21,19 +22,21 @@ export const essayOutlineAgentContract = createArvoOrchestratorContract({
 });
 
 export const essayOutlineAgent: EventHandlerFactory<
-  { memory: IMachineMemory<Record<string, unknown>> }
-> = ({ memory }) =>
+  { onStream?: AgentStreamListener }
+> = ({ onStream }) =>
   createArvoAgent({
     contracts: {
       self: essayOutlineAgentContract,
       services: {},
     },
-    memory,
+    onStream,
     llm: openaiLLMIntegration(
       new OpenAI.OpenAI({ apiKey: Deno.env.get('OPENAI_API_KEY') }),
       {
         invocationParam: {
-          model: 'o4-mini',
+          model: 'gpt-4o-mini',
+          temperature: 1,
+          max_completion_tokens: 1024,
         },
       },
     ),

@@ -10,6 +10,7 @@ import { cleanString } from 'arvo-core';
 import type { AgentStreamListener } from '@arvo-tools/agentic';
 import { simpleAgentContract } from './simple.agent.ts';
 import { calculatorAgentContract } from './calculator.agent.ts';
+import { essayBuilderWorkflowContract } from './essay.builder.workflow/contract.ts';
 
 export const operatorAgentContract = createArvoOrchestratorContract({
   uri: '#/org/amas/agent/operator',
@@ -42,6 +43,9 @@ export const operatorAgent: EventHandlerFactory<
         calculatorAgent: {
           contract: calculatorAgentContract.version('1.0.0'),
         },
+        essayBuilder: {
+          contract: essayBuilderWorkflowContract.version('1.0.0')
+        }
       },
     },
     onStream,
