@@ -27,7 +27,6 @@ export const addContract = createArvoContract({
 export const addHandler: EventHandlerFactory = () =>
   createArvoEventHandler({
     contract: addContract,
-    executionunits: 0,
     handler: {
       '1.0.0': async ({ event }) => {
         if (event.data.numbers.length === 0) {

@@ -27,7 +27,7 @@ export const weightedAverageContract = createArvoOrchestratorContract({
         input: z.object({
           value: z.number(),
           weight: z.number().min(0).max(1),
-        }).array().min(1),
+        }).array().min(2),
       }),
       complete: z.object({
         output: z.number().nullable(),

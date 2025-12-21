@@ -23,7 +23,11 @@ export const productContract = createSimpleArvoContract({
   versions: {
     '1.0.0': {
       accepts: z.object({
-        numbers: z.number().array(),
+        // The contract enforces the array requirement and
+        // will throw error at event creation time (via the event factory)
+        // and it will also throw a ViolationError (ContractViolation)
+        // if the event somehow makes its way to the event handler
+        numbers: z.number().array().min(2),
       }),
       emits: z.object({
         result: z.number(),
@@ -35,14 +39,11 @@ export const productContract = createSimpleArvoContract({
 export const productHandler: EventHandlerFactory = () =>
   createArvoEventHandler({
     contract: productContract, // Contract binding ensures type safety through IntelliSense, compile-time validation, and runtime checks
-    executionunits: 0, // Base execution cost for handler operations - enables cost tracking and performance analysis in event-driven systems
     handler: {
       // Register handlers for all the versions of the contract
       '1.0.0': async ({ event }) => {
-        if (event.data.numbers.length === 0) {
-          // This will result in 'sys.calculator.product.error' event
-          throw new Error('Numbers array cannot be empty');
-        }
+        // The error is not needed here because the contract makes
+        // sure that invalid data never reaches the handler
         return {
           type: 'evt.calculator.product.success' as const,
           data: {

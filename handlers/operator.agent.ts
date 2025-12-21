@@ -44,8 +44,8 @@ export const operatorAgent: EventHandlerFactory<
           contract: calculatorAgentContract.version('1.0.0'),
         },
         essayBuilder: {
-          contract: essayBuilderWorkflowContract.version('1.0.0')
-        }
+          contract: essayBuilderWorkflowContract.version('1.0.0'),
+        },
       },
     },
     onStream,
