@@ -7,7 +7,6 @@ import {
   createArvoOrchestrator,
   EventHandlerFactory,
   IMachineMemory,
-  MachineMemoryRecord,
   setupArvoMachine,
   xstate,
 } from 'arvo-event-handler';
@@ -163,9 +162,9 @@ const machineV100 = setupArvoMachine({
 // The memory backend is provided as a dependency injection so that the exeuction
 // layer can decide whiuch backedn to use.
 export const averageWorkflow: EventHandlerFactory<
-  { memory: IMachineMemory<Record<string, unknown>> }
+  { memory: IMachineMemory }
 > = ({ memory }) =>
   createArvoOrchestrator({
     machines: [machineV100],
-    memory: memory as IMachineMemory<MachineMemoryRecord>, // casting it to a specific type to make the typecript compiler happy
+    memory,
   });

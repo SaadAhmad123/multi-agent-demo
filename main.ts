@@ -163,7 +163,7 @@ emit 2 events to generate
 the products and then emit add event to add them all
 and then emit a final product event to calculate
 average and then emit the final output event.
-Do you approve? 
+Do you approve?
 [User Input: Yes]
 ==== Final Event ====
 {

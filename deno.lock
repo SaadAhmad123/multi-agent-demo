@@ -14,12 +14,12 @@
     "jsr:@std/path@^1.1.2": "1.1.3",
     "jsr:@std/path@^1.1.3": "1.1.3",
     "jsr:@std/testing@^1.0.16": "1.0.16",
-    "npm:@arvo-tools/agentic@^1.2.14": "1.2.14_zod@3.25.76",
+    "npm:@arvo-tools/agentic@^1.2.15": "1.2.15_zod@3.25.76",
     "npm:@inquirer/confirm@^6.0.3": "6.0.3",
     "npm:@inquirer/prompts@^8.1.0": "8.1.0",
     "npm:@opentelemetry/api@^1.9.0": "1.9.0",
-    "npm:arvo-core@^3.0.26": "3.0.26_@opentelemetry+api@1.9.0_zod@3.25.76",
-    "npm:arvo-event-handler@^3.0.26": "3.0.26_zod@3.25.76",
+    "npm:arvo-core@^3.0.27": "3.0.27_@opentelemetry+api@1.9.0_zod@3.25.76",
+    "npm:arvo-event-handler@^3.0.27": "3.0.27_zod@3.25.76",
     "npm:xstate@5.24.0": "5.24.0",
     "npm:zod-to-json-schema@^3.25.0": "3.25.0_zod@3.25.76",
     "npm:zod@^3.25.76": "3.25.76"
@@ -89,8 +89,8 @@
     "@arizeai/openinference-semantic-conventions@2.1.2": {
       "integrity": "sha512-u7UeuU9bJ1LxzHk0MPWb+1ZcotCcJwPnKDXi7Rl2cPs1pWMFg9Ogq7zzYZX+sDcibD2AEa1U+ElyOD8DwZc9gw=="
     },
-    "@arvo-tools/agentic@1.2.14_zod@3.25.76": {
-      "integrity": "sha512-uoOk5G2jpTkjIkeg0sncbZ7DCMiPHoRlBYKbhddCLlG42vM/wlKQkI4ySphl8Yqp87YHiaB5rVBtpFCFEVzHSA==",
+    "@arvo-tools/agentic@1.2.15_zod@3.25.76": {
+      "integrity": "sha512-qg8ImAgof7Q1RzfEDFXu1LU1gPqBrsCvEpsz4k+QEbU7p7/Dv1v2y04on1M8TU8EmfPtc6vX4CbP2NU3Lh5k/A==",
       "dependencies": [
         "@anthropic-ai/sdk",
         "@arizeai/openinference-semantic-conventions",
@@ -290,8 +290,8 @@
     "ansi-styles@6.2.3": {
       "integrity": "sha512-4Dj6M28JB+oAH8kFkTLUo+a2jwOFkuqb3yucU0CANcRRUbxS0cP0nZYCGjcc3BNXwRIsUVmDGgzawme7zvJHvg=="
     },
-    "arvo-core@3.0.26_@opentelemetry+api@1.9.0_zod@3.25.76": {
-      "integrity": "sha512-V5rQCDRvdwToVVkePDL7Uws9KDFul9mBhKE/UulaoOpcF89jVZDbYqNnkYNSiAxhF0VHkVBksUJBjqgAdtT7xQ==",
+    "arvo-core@3.0.27_@opentelemetry+api@1.9.0_zod@3.25.76": {
+      "integrity": "sha512-+TfVcAZSUtKbA1AD3MyuaJkZG/973gPJ5YprJbLbMiaRLvFPbrqQIYj6nVwyq6k60ZTpcrqktPwVPwckfl63pg==",
       "dependencies": [
         "@opentelemetry/api",
         "@opentelemetry/core",
@@ -301,8 +301,8 @@
         "zod-to-json-schema"
       ]
     },
-    "arvo-event-handler@3.0.26_zod@3.25.76": {
-      "integrity": "sha512-uQRQp6CkC4sF7uT/ZrsiJ/m1MTaXajcfqALEaSafQXNSGjmwt3sVD0TnnFraPZNwhiHR1Nh4X/uP7iuPjpHtWw==",
+    "arvo-event-handler@3.0.27_zod@3.25.76": {
+      "integrity": "sha512-LAb5Q8hamGFdmnxnxyCpH9LA/ndoZjRRru/FAvCAzKJccc65+aSgUI84HGa53oP+sW1EnnuS+Vh6/k9VNskZTQ==",
       "dependencies": [
         "@opentelemetry/api",
         "arvo-core",
@@ -840,12 +840,12 @@
       "jsr:@std/dotenv@~0.225.5",
       "jsr:@std/expect@^1.0.17",
       "jsr:@std/testing@^1.0.16",
-      "npm:@arvo-tools/agentic@^1.2.14",
+      "npm:@arvo-tools/agentic@^1.2.15",
       "npm:@inquirer/confirm@^6.0.3",
       "npm:@inquirer/prompts@^8.1.0",
       "npm:@opentelemetry/api@^1.9.0",
-      "npm:arvo-core@^3.0.26",
-      "npm:arvo-event-handler@^3.0.26",
+      "npm:arvo-core@^3.0.27",
+      "npm:arvo-event-handler@^3.0.27",
       "npm:xstate@5.24.0",
       "npm:zod-to-json-schema@^3.25.0",
       "npm:zod@^3.25.76"

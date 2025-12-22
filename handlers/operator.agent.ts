@@ -27,7 +27,7 @@ export const operatorAgentContract = createArvoOrchestratorContract({
 
 export const operatorAgent: EventHandlerFactory<
   {
-    memory: IMachineMemory<Record<string, unknown>>;
+    memory: IMachineMemory;
     onStream?: AgentStreamListener;
   }
 > = ({ memory, onStream }) =>

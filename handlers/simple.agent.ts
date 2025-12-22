@@ -42,7 +42,7 @@ export const simpleAgentContract = createArvoOrchestratorContract({
 
 export const simpleAgent: EventHandlerFactory<
   {
-    memory: IMachineMemory<Record<string, unknown>>;
+    memory: IMachineMemory;
     permissionManager?: IPermissionManager;
     onStream?: AgentStreamListener;
   }
