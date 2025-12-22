@@ -44,6 +44,7 @@ export const productHandler: EventHandlerFactory = () =>
       '1.0.0': async ({ event }) => {
         // The error is not needed here because the contract makes
         // sure that invalid data never reaches the handler
+        await new Promise((res) => setTimeout(res, 500));
         return {
           type: 'evt.calculator.product.success' as const,
           data: {

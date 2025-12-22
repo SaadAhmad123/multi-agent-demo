@@ -1,9 +1,5 @@
 import { confirm } from '@inquirer/prompts';
 import { ArvoEvent, createArvoEventFactory } from 'arvo-core';
-import {
-  createSimpleEventBroker,
-  SimpleMachineMemory,
-} from 'arvo-event-handler';
 import { addHandler } from './handlers/add.service.ts';
 import { productHandler } from './handlers/product.service.ts';
 import { averageWorkflow } from './handlers/average.workflow.ts';
@@ -19,21 +15,23 @@ import {
   trace,
 } from '@opentelemetry/api';
 import { humanApprovalContract } from './handlers/human.approval.contract.ts';
+import { ConcurrentMachineMemory } from './commons/ConcurrentMachineMemory/index.ts';
+import { createConcurrentEventBroker } from './commons/ConcurrentEventBroker/factory.ts';
 
 const tracer = trace.getTracer('main-agent-tracer');
 const TEST_EVENT_SOURCE = 'test.test.test';
-const memory = new SimpleMachineMemory();
+const memory = new ConcurrentMachineMemory();
 
 // Added domained event handling
 export const executeHandlers = async (
   event: ArvoEvent,
 ): Promise<ArvoEvent[]> => {
   const domainedEvents: ArvoEvent[] = [];
-  const response = await createSimpleEventBroker([
-    addHandler(),
-    productHandler(),
-    averageWorkflow({ memory }),
-    weightedAverageResumable({ memory }),
+  const response = await createConcurrentEventBroker([
+    { handler: addHandler() },
+    { handler: productHandler(), prefetch: 100 },
+    { handler: averageWorkflow({ memory }) },
+    { handler: weightedAverageResumable({ memory }) },
   ], {
     onDomainedEvents: async ({ event }) => {
       domainedEvents.push(event);
@@ -117,6 +115,25 @@ async function main() {
             input: [
               [2, 0.3],
               [45, 0.8],
+              [2, 0.3],
+              [45, 0.8],
+              [2, 0.3],
+              [45, 0.8],
+              [2, 0.3],
+              [45, 0.8],
+              [2, 0.3],
+              [45, 0.8],
+              [2, 0.3],
+              [45, 0.8],
+              [2, 0.3],
+              [45, 0.8],
+              [2, 0.3],
+              [45, 0.8],
+              [2, 0.3],
+              [45, 0.8],
+              [2, 0.3],
+              [45, 0.8],
+              [2, 0.3],
             ].map(([value, weight]) => ({ value, weight })),
           },
         });

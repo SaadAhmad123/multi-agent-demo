@@ -48,7 +48,7 @@ const machineV100 = setupArvoMachine({
     },
   },
 }).createMachine({
-  id: 'machine', 
+  id: 'machine',
   context: ({ input }) => ({
     numbers: input.data.numbers,
     sum: null,
