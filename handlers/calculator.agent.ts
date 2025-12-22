@@ -51,9 +51,6 @@ export const calculatorAgent: EventHandlerFactory<
         },
         humanConversation: {
           contract: humanConversationContract.version('1.0.0'),
-          // A symbolic domain which will resolve on event emission
-          // time and inherit from the humanConversationContract itself.
-          // This is one of the ways to define the domain of an event
           domains: [ArvoDomain.FROM_EVENT_CONTRACT],
         },
       },
@@ -65,7 +62,7 @@ export const calculatorAgent: EventHandlerFactory<
       {
         invocationParam: {
           model: 'claude-4-sonnet-20250514',
-          stream: true, // Enable LLM stream. This is in addition to the agent streaming
+          stream: true,
           max_tokens: 4096,
           temperature: 0,
         },
