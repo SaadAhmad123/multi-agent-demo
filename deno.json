@@ -2,7 +2,7 @@
   "tasks": {
     "start": "OTEL_DENO=true OTEL_SERVICE_NAME=deno-agents deno run -A main.ts",
     "dev": "OTEL_DENO=true OTEL_SERVICE_NAME=deno-agents deno run --watch main.ts",
-    "test": "OTEL_DENO=true OTEL_SERVICE_NAME=deno-agents-test deno test -A",
+    "test": "OTEL_DENO=true OTEL_SERVICE_NAME=deno-agents-test deno test -A --coverage",
     "otel": "docker run --rm -e COLLECTOR_ZIPKIN_HOST_PORT=:9411 -p 16686:16686 -p 4317:4317 -p 4318:4318 -p 9411:9411 jaegertracing/all-in-one:latest"
   },
   "imports": {

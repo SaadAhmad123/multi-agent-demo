@@ -1,43 +1,7 @@
 import { logToSpan } from 'arvo-core';
 import type { IMachineMemory } from 'arvo-event-handler';
 import { TTLMutex } from './TTLMutex.ts';
-
-/**
- * Configuration options for ConcurrentMachineMemory.
- */
-export type ConcurrentMachineMemoryConfig = {
-  /**
-   * Whether to enable automatic cleanup of memory and locks when cleanup() is called.
-   * @default true
-   */
-  enableCleanup?: boolean;
-
-  /**
-   * Maximum number of retry attempts when acquiring a lock.
-   * @default 3
-   */
-  lockMaxRetries?: number;
-
-  /**
-   * Initial delay in milliseconds before the first retry attempt.
-   * @default 100
-   */
-  lockInitialDelayMs?: number;
-
-  /**
-   * Exponential backoff multiplier for retry delays.
-   * Each retry waits lockInitialDelayMs * (lockBackoffExponent ^ attemptNumber).
-   * @default 2
-   */
-  lockBackoffExponent?: number;
-
-  /**
-   * Time-to-live in milliseconds for acquired locks.
-   * Locks held longer than this duration are considered expired and automatically released.
-   * @default 120000 (2 minutes)
-   */
-  lockTTLMs?: number;
-};
+import { ConcurrentMachineMemoryConfig } from './types.ts';
 
 /**
  * In-process concurrent machine memory implementation with TTL-based locking.
@@ -94,7 +58,7 @@ export class ConcurrentMachineMemory<
     this.enableCleanup = config?.enableCleanup ?? true;
     this.lockMaxRetries = config?.lockMaxRetries ?? 3;
     this.lockInitialDelayMs = config?.lockInitialDelayMs ?? 100;
-    this.lockBackoffExponent = config?.lockBackoffExponent ?? 2;
+    this.lockBackoffExponent = config?.lockBackoffExponent ?? 1.5;
     this.lockTTLMs = config?.lockTTLMs ?? 120000;
   }
 
@@ -239,6 +203,10 @@ export class ConcurrentMachineMemory<
         await this.delay(delayMs);
       }
       attempt++;
+
+      if (attempt >= this.lockMaxRetries) {
+        break;
+      }
     }
 
     logToSpan({

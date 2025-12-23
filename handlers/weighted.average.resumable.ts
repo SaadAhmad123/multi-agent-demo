@@ -139,6 +139,7 @@ export const weightedAverageResumable: EventHandlerFactory<
             return;
           }
 
+          await new Promise((res) => setTimeout(res, 100));
           return {
             context: {
               ...context,
@@ -172,6 +173,7 @@ export const weightedAverageResumable: EventHandlerFactory<
             output: {
               output: service.data.result,
             },
+            
           };
         }
       },
