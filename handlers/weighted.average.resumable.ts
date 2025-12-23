@@ -173,7 +173,6 @@ export const weightedAverageResumable: EventHandlerFactory<
             output: {
               output: service.data.result,
             },
-            
           };
         }
       },

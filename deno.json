@@ -7,6 +7,7 @@
   },
   "imports": {
     "@arvo-tools/agentic": "npm:@arvo-tools/agentic@^1.2.15",
+    "@arvo-tools/concurrent": "npm:@arvo-tools/concurrent@^1.0.1",
     "@inquirer/confirm": "npm:@inquirer/confirm@^6.0.3",
     "@inquirer/prompts": "npm:@inquirer/prompts@^8.1.0",
     "@opentelemetry/api": "npm:@opentelemetry/api@^1.9.0",

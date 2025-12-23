@@ -15,6 +15,7 @@
     "jsr:@std/path@^1.1.3": "1.1.3",
     "jsr:@std/testing@^1.0.16": "1.0.16",
     "npm:@arvo-tools/agentic@^1.2.15": "1.2.15_zod@3.25.76",
+    "npm:@arvo-tools/concurrent@^1.0.1": "1.0.1",
     "npm:@inquirer/confirm@^6.0.3": "6.0.3",
     "npm:@inquirer/prompts@^8.1.0": "8.1.0",
     "npm:@opentelemetry/api@^1.9.0": "1.9.0",
@@ -104,6 +105,15 @@
         "uuid",
         "zod",
         "zod-to-json-schema"
+      ]
+    },
+    "@arvo-tools/concurrent@1.0.1": {
+      "integrity": "sha512-axvbjamSsi+y7bTKV9SlKjJ7UjrhNCjTy7Feq1qHM6hoUvYqY4LW3JtiL7U6dO+fFeuIF7K7geq9BZ04giGDOQ==",
+      "dependencies": [
+        "arvo-core",
+        "arvo-event-handler",
+        "async-mutex",
+        "p-queue"
       ]
     },
     "@babel/runtime@7.28.4": {
@@ -865,6 +875,7 @@
       "jsr:@std/expect@^1.0.17",
       "jsr:@std/testing@^1.0.16",
       "npm:@arvo-tools/agentic@^1.2.15",
+      "npm:@arvo-tools/concurrent@^1.0.1",
       "npm:@inquirer/confirm@^6.0.3",
       "npm:@inquirer/prompts@^8.1.0",
       "npm:@opentelemetry/api@^1.9.0",
