@@ -6,8 +6,9 @@
     "otel": "docker run --rm -e COLLECTOR_ZIPKIN_HOST_PORT=:9411 -p 16686:16686 -p 4317:4317 -p 4318:4318 -p 9411:9411 jaegertracing/all-in-one:latest"
   },
   "imports": {
-    "@arvo-tools/agentic": "npm:@arvo-tools/agentic@^1.2.15",
-    "@arvo-tools/concurrent": "npm:@arvo-tools/concurrent@^1.0.1",
+    "@arvo-tools/agentic": "npm:@arvo-tools/agentic@^1.2.17",
+    "@arvo-tools/concurrent": "npm:@arvo-tools/concurrent@^1.0.3",
+    "@arvo-tools/postgres": "npm:@arvo-tools/postgres@^1.0.0",
     "@inquirer/confirm": "npm:@inquirer/confirm@^6.0.3",
     "@inquirer/prompts": "npm:@inquirer/prompts@^8.1.0",
     "@opentelemetry/api": "npm:@opentelemetry/api@^1.9.0",
@@ -15,12 +16,15 @@
     "@std/dotenv": "jsr:@std/dotenv@^0.225.5",
     "@std/expect": "jsr:@std/expect@^1.0.17",
     "@std/testing": "jsr:@std/testing@^1.0.16",
-    "arvo-core": "npm:arvo-core@^3.0.27",
-    "arvo-event-handler": "npm:arvo-event-handler@^3.0.27",
+    "@types/pg": "npm:@types/pg@^8.16.0",
+    "arvo-core": "npm:arvo-core@^3.0.28",
+    "arvo-event-handler": "npm:arvo-event-handler@^3.0.28",
     "async-mutex": "npm:async-mutex@^0.5.0",
     "p-queue": "npm:p-queue@^9.0.1",
+    "pg": "npm:pg@^8.16.3",
+    "pg-boss": "npm:pg-boss@^12.5.4",
     "xstate": "npm:xstate@5.24.0",
-    "zod": "npm:zod@^3.25.76",
+    "zod": "npm:zod@3.25.76",
     "zod-to-json-schema": "npm:zod-to-json-schema@^3.25.0"
   },
   "fmt": {

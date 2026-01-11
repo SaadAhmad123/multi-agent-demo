@@ -26,13 +26,29 @@ import { essayWriterAgent } from './handlers/essay-writer.agent.ts';
 import { essayBuilderWorkflow } from './handlers/essay.builder.workflow/index.ts';
 import { humanApprovalContract } from './handlers/human.approval.contract.ts';
 import { cleanString } from 'arvo-core';
+import { createConcurrentEventBroker } from '@arvo-tools/concurrent';
 import {
-  ConcurrentMachineMemory,
-  createConcurrentEventBroker,
-} from '@arvo-tools/concurrent';
+  connectPostgresMachineMemory,
+  createPostgresMachineMemoryTables,
+  releasePostgressMachineMemory,
+} from '@arvo-tools/postgres';
 const TEST_EVENT_SOURCE = 'test.test.test';
 
 const tracer = trace.getTracer('main-agent-tracer');
+await createPostgresMachineMemoryTables(
+  Deno.env.get('POSTGRES_DB_URL') ?? '',
+  {
+    version: 1,
+  },
+);
+
+const memory = await connectPostgresMachineMemory({
+  version: 1,
+  config: {
+    connectionString: Deno.env.get('POSTGRES_DB_URL') ?? '',
+    enableOtel: false,
+  },
+});
 
 function createOtelContextFromEvent(event: ArvoEvent) {
   const traceParent = event.traceparent;
@@ -172,7 +188,6 @@ async function handleHumanApproval(event: ArvoEvent): Promise<ArvoEvent> {
   );
 }
 
-const memory = new ConcurrentMachineMemory();
 const permissionManager = new SimplePermissionManager({
   domains: ['human.interaction'],
 });
@@ -222,7 +237,9 @@ export const executeHandlers = async (
     { handler: essayWriterAgent({ onStream }) },
     { handler: essayOutlineAgent({ onStream }) },
   ], {
-    defaultHandlerConfig: { prefetch: 1 },
+    defaultHandlerConfig: {
+      prefetch: 10,
+    },
     onDomainedEvents: async ({ event }) => {
       domainedEvents.push(event);
     },
@@ -309,4 +326,5 @@ async function main() {
 
 if (import.meta.main) {
   await main();
+  await releasePostgressMachineMemory(memory);
 }
